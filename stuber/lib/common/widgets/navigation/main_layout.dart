@@ -5,7 +5,7 @@ import 'package:stuber/features/profile/profile_screen.dart';
 import 'package:stuber/features/search/search_screen.dart';
 import 'package:stuber/common/widgets/navigation/bottom_nav_bar.dart';
 import 'package:stuber/pages/map_page.dart';
-
+import 'package:stuber/features/ride_flow/presentation/screens/ride_map_screen.dart';
 class MainLayout extends StatefulWidget {
   const MainLayout({Key? key}) : super(key: key);
 
@@ -19,7 +19,8 @@ class _MainLayoutState extends State<MainLayout> {
   // Define your main screens here
   static final List<Widget> _screens = [
     // const HomeScreen(),
-    const MapPage(),
+    // const MapPage(),
+    const RideMapScreen(),
     const SearchScreen(),
     // const FavoritesScreen(),
     const ProfileScreen(),
