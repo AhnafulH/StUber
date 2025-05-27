@@ -17,9 +17,9 @@ class AppBottomNavigationBar extends StatelessWidget {
       selectedIndex: selectedIndex,
       destinations: const [
         NavigationDestination(
-          icon: Icon(Icons.home_outlined),
-          selectedIcon: Icon(Icons.home),
-          label: 'Home',
+          icon: Icon(Icons.map_outlined),
+          selectedIcon: Icon(Icons.map),
+          label: 'Map',
         ),
         NavigationDestination(
           icon: Icon(Icons.search_outlined),
