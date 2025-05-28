@@ -25,7 +25,7 @@ class _MainLayoutState extends State<MainLayout> {
     // const MapPage(),
     const RideShareScreen(),
     // const RideMapScreen(),
-    // const SearchScreen(),
+    const SearchScreen(),
     const MapPage(),
     // const FavoritesScreen(),
     const ProfileScreen(),

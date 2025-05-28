@@ -22,15 +22,15 @@ class AppBottomNavigationBar extends StatelessWidget {
           label: 'Map',
         ),
         NavigationDestination(
-          icon: Icon(Icons.search_outlined),
-          selectedIcon: Icon(Icons.search),
-          label: 'Search',
+          icon: Icon(Icons.directions_car_outlined),
+          selectedIcon: Icon(Icons.directions_car),
+          label: 'Rides',
         ),
-        // NavigationDestination(
-        //   icon: Icon(Icons.favorite_outline),
-        //   selectedIcon: Icon(Icons.favorite),
-        //   label: 'Favorites',
-        // ),
+        NavigationDestination(
+          icon: Icon(Icons.chat_bubble_outline),
+          selectedIcon: Icon(Icons.chat_bubble),
+          label: 'Messages',
+        ),
         NavigationDestination(
           icon: Icon(Icons.person_outline),
           selectedIcon: Icon(Icons.person),
