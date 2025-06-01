@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:stuber/features/map/presentation/map_component.dart';
 import 'package:animated_toggle_switch/animated_toggle_switch.dart';
-
+import 'package:stuber/features/location_search_autocomplete/search_autocomplete.dart';
 class RideShareScreen extends StatefulWidget {
   const RideShareScreen({Key? key}) : super(key: key);
 
@@ -669,6 +669,7 @@ Widget build(BuildContext context) {
   required TextEditingController controller,
   required VoidCallback onTap,
   required VoidCallback onSubmitted,
+  required Function(LocationDetails) onLocationSelected,
 }) {
   return InkWell(
     onTap: isEditing ? null : onTap,

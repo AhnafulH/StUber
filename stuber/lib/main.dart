@@ -32,7 +32,5 @@ import 'package:stuber/app.dart';
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   
-  // Initialize dependencies, configurations, etc. here
-  
   runApp(const MyApp());
 }

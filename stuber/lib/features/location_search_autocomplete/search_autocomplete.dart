@@ -70,6 +70,8 @@ class SearchSuggestion {
       }
     }
     
+    print('Parsed suggestion: $name, ID: $id, Coordinates: ($latitude, $longitude)'); // Debug log
+    
     return SearchSuggestion(
       id: id,
       name: name,
@@ -82,7 +84,6 @@ class SearchSuggestion {
   }
 }
 
-// Location info when user taps a suggestion
 class LocationDetails {
   final String id;
   final String name;
@@ -105,48 +106,50 @@ class LocationDetails {
   });
 
   factory LocationDetails.fromJson(Map<String, dynamic> json) {
-    // For Search Box API retrieve response
+    // For Search Box API retrieve response - follows GeoJSON Feature format
     double latitude = 0.0;
     double longitude = 0.0;
     
-    // Try to extract coordinates from various possible locations
+    // Extract coordinates from geometry.coordinates (GeoJSON format)
     if (json['geometry'] != null && json['geometry']['coordinates'] != null) {
       final coordinates = json['geometry']['coordinates'];
       if (coordinates is List && coordinates.length >= 2) {
         longitude = (coordinates[0] as num).toDouble();
         latitude = (coordinates[1] as num).toDouble();
       }
-    } else if (json['center'] != null) {
-      final center = json['center'];
-      if (center is List && center.length >= 2) {
-        longitude = (center[0] as num).toDouble();
-        latitude = (center[1] as num).toDouble();
+    }
+    
+    // Also try properties.coordinates as backup
+    final properties = json['properties'] ?? {};
+    if (latitude == 0.0 && longitude == 0.0 && properties['coordinates'] != null) {
+      final coords = properties['coordinates'];
+      if (coords['longitude'] != null && coords['latitude'] != null) {
+        longitude = (coords['longitude'] as num).toDouble();
+        latitude = (coords['latitude'] as num).toDouble();
       }
     }
     
-    // Extract properties - might be in 'properties' or directly in json
-    final properties = json['properties'] ?? {};
-    
-    String name = json['name']?.toString() ?? 
-                  properties['name']?.toString() ?? 
+    // Extract properties according to documentation
+    String name = properties['name']?.toString() ?? 
+                  properties['name_preferred']?.toString() ?? 
                   'Unknown Location';
     
-    String fullAddress = json['full_address']?.toString() ?? 
-                         json['place_formatted']?.toString() ?? 
-                         properties['full_address']?.toString() ?? 
+    String fullAddress = properties['full_address']?.toString() ?? 
+                         properties['place_formatted']?.toString() ?? 
                          properties['address']?.toString() ?? 
                          'Address not available';
     
-    String id = json['mapbox_id']?.toString() ?? 
+    String id = properties['mapbox_id']?.toString() ?? 
                 json['id']?.toString() ?? 
                 '';
     
-    // Contact info might be in properties
+    // Contact info and other properties
     String? phoneNumber = properties['tel']?.toString() ?? 
-                          json['tel']?.toString();
+                          properties['phone']?.toString();
     
-    String? website = properties['website']?.toString() ?? 
-                      json['website']?.toString();
+    String? website = properties['website']?.toString();
+    
+    print('Parsed retrieve location: $name at ($latitude, $longitude)'); // Debug log
     
     return LocationDetails(
       id: id,
@@ -156,7 +159,7 @@ class LocationDetails {
       longitude: longitude,
       phoneNumber: phoneNumber,
       website: website,
-      openingHours: properties['opening_hours'] ?? json['opening_hours'],
+      openingHours: properties['opening_hours'],
     );
   }
 }
@@ -250,8 +253,8 @@ class MapboxSearchService {
     required String sessionToken,
   }) async {
     try {
-      final uri = Uri.parse('$_baseUrl/retrieve').replace(queryParameters: {
-        'id': suggestionId,
+      // Correct URL format: PUT ID IN PATH, not query parameter
+      final uri = Uri.parse('$_baseUrl/retrieve/$suggestionId').replace(queryParameters: {
         'access_token': _accessToken,
         'session_token': sessionToken,
       });
@@ -265,25 +268,81 @@ class MapboxSearchService {
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
         
-        // Handle different response structures
-        Map<String, dynamic> featureData;
+        // Based on documentation, response is a FeatureCollection
         if (data['features'] != null && (data['features'] as List).isNotEmpty) {
-          featureData = data['features'][0];
-        } else if (data['feature'] != null) {
-          featureData = data['feature'];
+          final feature = data['features'][0];
+          return LocationDetails.fromJson(feature);
         } else {
-          featureData = data; // Sometimes the data itself is the feature
+          print('No features found in retrieve response');
+          return null;
         }
-        
-        return LocationDetails.fromJson(featureData);
       } else {
         print('Retrieve API Error: ${response.statusCode} - ${response.body}');
-        throw Exception('Failed to retrieve location: ${response.statusCode}');
+        // Return null to indicate failure, we'll handle this in the widget
+        return null;
       }
     } catch (e) {
       print('Error retrieving location: $e');
       return null;
     }
+  }
+
+  // Get coordinates for a location using forward geocoding as fallback
+  Future<Map<String, double>?> getCoordinatesForAddress(String address) async {
+    try {
+      // Use the geocoding API as fallback for coordinates
+      final uri = Uri.parse('https://api.mapbox.com/geocoding/v5/mapbox.places/${Uri.encodeComponent(address)}.json').replace(queryParameters: {
+        'access_token': _accessToken,
+        'limit': '1',
+      });
+
+      final response = await http.get(uri);
+      
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        final features = data['features'] as List;
+        
+        if (features.isNotEmpty) {
+          final coordinates = features[0]['center'];
+          if (coordinates is List && coordinates.length >= 2) {
+            return {
+              'longitude': (coordinates[0] as num).toDouble(),
+              'latitude': (coordinates[1] as num).toDouble(),
+            };
+          }
+        }
+      }
+    } catch (e) {
+      print('Error getting coordinates for address: $e');
+    }
+    return null;
+  }
+
+  // Helper method to convert SearchSuggestion to LocationDetails with coordinate lookup
+  Future<LocationDetails> suggestionToLocationDetailsWithCoords(SearchSuggestion suggestion) async {
+    double lat = suggestion.latitude;
+    double lng = suggestion.longitude;
+    
+    // If coordinates are missing (0.0, 0.0), try to get them
+    if (lat == 0.0 && lng == 0.0) {
+      final coords = await getCoordinatesForAddress(suggestion.address);
+      if (coords != null) {
+        lat = coords['latitude']!;
+        lng = coords['longitude']!;
+        print('Got coordinates for ${suggestion.name}: ($lat, $lng)');
+      }
+    }
+    
+    return LocationDetails(
+      id: suggestion.id,
+      name: suggestion.name,
+      fullAddress: suggestion.address,
+      latitude: lat,
+      longitude: lng,
+      phoneNumber: null,
+      website: null,
+      openingHours: null,
+    );
   }
 }
 
@@ -391,35 +450,48 @@ class _LocationSearchWidgetState extends State<LocationSearchWidget> {
   Future<void> _onSuggestionSelected(SearchSuggestion suggestion) async {
     if (_currentSessionToken == null) return;
 
+    print('Selected suggestion: ${suggestion.name} with ID: ${suggestion.id}'); // Debug log
+
     setState(() {
       _isLoading = true;
     });
 
+    LocationDetails? finalLocationDetails;
+
     try {
+      // Try to get detailed information first
       final locationDetails = await _searchService.retrieveLocation(
         suggestionId: suggestion.id,
         sessionToken: _currentSessionToken!,
       );
 
-      setState(() {
-        _isLoading = false;
-        _suggestions.clear();
-        _controller.text = suggestion.name;
-      });
-
-      // End current session
-      _currentSessionToken = null;
-      _focusNode.unfocus();
-
       if (locationDetails != null) {
-        widget.onLocationSelected(locationDetails);
+        finalLocationDetails = locationDetails;
+        print('Got detailed location from retrieve: ${finalLocationDetails.name}');
+      } else {
+        // Retrieve returned null (404 error), use fallback with coordinate lookup
+        print('Retrieve failed, using fallback with coordinate lookup');
+        finalLocationDetails = await _searchService.suggestionToLocationDetailsWithCoords(suggestion);
       }
+      
     } catch (e) {
-      setState(() {
-        _isLoading = false;
-      });
-      print('Retrieve error: $e');
+      // Exception occurred, use fallback with coordinate lookup
+      print('Retrieve threw exception, using fallback with coordinate lookup: $e');
+      finalLocationDetails = await _searchService.suggestionToLocationDetailsWithCoords(suggestion);
     }
+
+    setState(() {
+      _isLoading = false;
+      _suggestions.clear();
+      _controller.text = suggestion.name;
+    });
+
+    // End current session
+    _currentSessionToken = null;
+    _focusNode.unfocus();
+
+    print('Final location: ${finalLocationDetails.name} at ${finalLocationDetails.latitude}, ${finalLocationDetails.longitude}');
+    widget.onLocationSelected(finalLocationDetails);
   }
 
   @override
