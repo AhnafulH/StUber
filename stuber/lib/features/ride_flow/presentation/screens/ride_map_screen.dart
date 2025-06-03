@@ -3,6 +3,7 @@ import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:stuber/features/map/presentation/map_component.dart';
 import 'package:animated_toggle_switch/animated_toggle_switch.dart';
 import 'package:stuber/features/location_search_autocomplete/search_autocomplete.dart';
+import 'package:stuber/features/location_search_autocomplete/location_suggestion_widget.dart';
 class RideShareScreen extends StatefulWidget {
   const RideShareScreen({Key? key}) : super(key: key);
 
@@ -25,7 +26,9 @@ class _RideShareScreenState extends State<RideShareScreen> {
   bool _isEditingTo = false;
   final TextEditingController _startingLocationController = TextEditingController();
   final TextEditingController _destinationController = TextEditingController();
-  
+
+  LocationDetails? _startingLocationDetails;
+  LocationDetails? _destinationLocationDetails;
   // For request mode
   int _requestedSeats = 1;
   
@@ -242,6 +245,14 @@ Widget build(BuildContext context) {
                                       _startingLocationController.text = _startingLocation;
                                     });
                                   },
+                                  onLocationSelected: (LocationDetails location) {
+                                    setState(() {
+                                      _startingLocation = location.name;
+                                      _isEditingFrom = false;
+                                      // Store the location details for later use
+                                      _startingLocationDetails = location;
+                                    });
+                                  },
                                   onSubmitted: () {
                                     setState(() {
                                       _startingLocation = _startingLocationController.text;
@@ -280,6 +291,14 @@ Widget build(BuildContext context) {
                                     setState(() {
                                       _isEditingTo = true;
                                       _destinationController.text = _destination;
+                                    });
+                                  },
+                                  onLocationSelected: (LocationDetails location) {
+                                    setState(() {
+                                      _startingLocation = location.name;
+                                      _isEditingFrom = false;
+                                      // Store the location details for later use
+                                      _destinationLocationDetails = location;
                                     });
                                   },
                                   onSubmitted: () {
@@ -466,6 +485,14 @@ Widget build(BuildContext context) {
                                       _startingLocationController.text = _startingLocation;
                                     });
                                   },
+                                  onLocationSelected: (LocationDetails location) {
+                                    setState(() {
+                                      _startingLocation = location.name;
+                                      _isEditingFrom = false;
+                                      // Store the location details for later use
+                                      _startingLocationDetails = location;
+                                    });
+                                  },
                                   onSubmitted: () {
                                     setState(() {
                                       _startingLocation = _startingLocationController.text;
@@ -504,6 +531,14 @@ Widget build(BuildContext context) {
                                     setState(() {
                                       _isEditingTo = true;
                                       _destinationController.text = _destination;
+                                    });
+                                  },
+                                  onLocationSelected: (LocationDetails location) {
+                                    setState(() {
+                                      _startingLocation = location.name;
+                                      _isEditingFrom = false;
+                                      // Store the location details for later use
+                                      _destinationLocationDetails = location;
                                     });
                                   },
                                   onSubmitted: () {
@@ -660,7 +695,8 @@ Widget build(BuildContext context) {
     );
   }
   
-  Widget _buildRouteItem({
+
+Widget _buildRouteItem({
   required IconData icon,
   required Color iconColor,
   required String title,
@@ -676,86 +712,99 @@ Widget build(BuildContext context) {
     borderRadius: BorderRadius.circular(12),
     child: Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
+      child: Column(
         children: [
-          Icon(
-            icon,
-            color: iconColor,
-            size: 20,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.grey[600],
-                    letterSpacing: 0.5,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                if (isEditing)
-                  TextField(
-                    controller: controller,
-                    autofocus: true,
-                    decoration: InputDecoration(
-                      border: InputBorder.none,
-                      contentPadding: EdgeInsets.zero,
-                      // hintText: 'Enter ${title.toLowerCase()}',
-                      hintStyle: TextStyle(
-                        fontSize: 16,
-                        color: Colors.grey[400],
+          Row(
+            children: [
+              Icon(
+                icon,
+                color: iconColor,
+                size: 20,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.grey[600],
+                        letterSpacing: 0.5,
                       ),
                     ),
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF1A1A1A),
-                      letterSpacing: -0.2,
-                    ),
-                    textInputAction: TextInputAction.done,
-                    onSubmitted: (_) => onSubmitted(),
-                    onTap: () {
-                      // Move cursor to end when tapped
-                      controller.selection = TextSelection.fromPosition(
-                        TextPosition(offset: controller.text.length),
-                      );
-                    },
-                  )
-                else
-                  GestureDetector(
-                    onTap: onTap,
-                    child: Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.symmetric(vertical: 4),
-                      child: Text(
-                        value.isEmpty ? '${title}' : value,
-                        style: TextStyle(
+                    const SizedBox(height: 2),
+                    
+                    // Your original TextField (UNCHANGED)
+                    if (isEditing)
+                      TextField(
+                        controller: controller,
+                        autofocus: true,
+                        decoration: InputDecoration(
+                          border: InputBorder.none,
+                          contentPadding: EdgeInsets.zero,
+                          hintStyle: TextStyle(
+                            fontSize: 16,
+                            color: Colors.grey[400],
+                          ),
+                        ),
+                        style: const TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
-                          color: value.isEmpty 
-                              ? Colors.grey[400] 
-                              : const Color(0xFF1A1A1A),
+                          color: Color(0xFF1A1A1A),
                           letterSpacing: -0.2,
                         ),
+                        textInputAction: TextInputAction.done,
+                        onSubmitted: (_) => onSubmitted(),
+                        onTap: () {
+                          controller.selection = TextSelection.fromPosition(
+                            TextPosition(offset: controller.text.length),
+                          );
+                        },
+                      )
+                    else
+                      GestureDetector(
+                        onTap: onTap,
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: Text(
+                            value.isEmpty ? title : value,
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: value.isEmpty 
+                                  ? Colors.grey[400] 
+                                  : const Color(0xFF1A1A1A),
+                              letterSpacing: -0.2,
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
-                  ),
-              ],
-            ),
+                  ],
+                ),
+              ),
+              GestureDetector(
+                onTap: isEditing ? onSubmitted : onTap,
+                child: Icon(
+                  isEditing ? Icons.check : Icons.edit_outlined,
+                  color: isEditing ? Colors.green : Colors.grey[400],
+                  size: 18,
+                ),
+              ),
+            ],
           ),
-          GestureDetector(
-            onTap: isEditing ? onSubmitted : onTap,
-            child: Icon(
-              isEditing ? Icons.check : Icons.edit_outlined,
-              color: isEditing ? Colors.green : Colors.grey[400],
-              size: 18,
+          
+          // Add suggestions widget BELOW your existing TextField
+          if (isEditing)
+            LocationSuggestionsWidget(
+              mapboxAccessToken: "pk.eyJ1IjoiYWhuYWZ1bCIsImEiOiJjbWI4b24zOTkwazdwMnJvaDhva3c1bmRsIn0.IoyYuI4vuqow-6P-5fQaew",
+              controller: controller,
+              onLocationSelected: onLocationSelected,
+              searchTypes: const ['poi', 'address', 'place'],
             ),
-          ),
         ],
       ),
     ),
