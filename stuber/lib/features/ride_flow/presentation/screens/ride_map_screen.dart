@@ -295,9 +295,8 @@ Widget build(BuildContext context) {
                                   },
                                   onLocationSelected: (LocationDetails location) {
                                     setState(() {
-                                      _startingLocation = location.name;
-                                      _isEditingFrom = false;
-                                      // Store the location details for later use
+                                      _destination = location.name;
+                                      _isEditingTo = false;
                                       _destinationLocationDetails = location;
                                     });
                                   },
@@ -535,8 +534,8 @@ Widget build(BuildContext context) {
                                   },
                                   onLocationSelected: (LocationDetails location) {
                                     setState(() {
-                                      _startingLocation = location.name;
-                                      _isEditingFrom = false;
+                                      _destination = location.name;
+                                      _isEditingTo = false;
                                       // Store the location details for later use
                                       _destinationLocationDetails = location;
                                     });

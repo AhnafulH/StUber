@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:stuber/features/location_search_autocomplete/search_autocomplete.dart';
 
+// Custom widget that only shows suggestions, no input field
 class LocationSuggestionsWidget extends StatefulWidget {
   final String mapboxAccessToken;
   final Function(LocationDetails) onLocationSelected;
@@ -55,19 +56,25 @@ class _LocationSuggestionsWidgetState extends State<LocationSuggestionsWidget> {
     
     if (widget.controller.text.isEmpty) {
       _currentSessionToken = null;
-      setState(() {
-        _suggestions.clear();
-      });
+      if (mounted) { // Check if widget is still mounted
+        setState(() {
+          _suggestions.clear();
+        });
+      }
       return;
     }
 
     _debounceTimer = Timer(const Duration(milliseconds: 300), () {
-      _performSearch(widget.controller.text);
+      if (mounted) { // Check if widget is still mounted
+        _performSearch(widget.controller.text);
+      }
     });
   }
 
   Future<void> _performSearch(String query) async {
     if (query.trim().isEmpty || _currentSessionToken == null) return;
+
+    if (!mounted) return; // Check if widget is still mounted
 
     setState(() {
       _isLoading = true;
@@ -83,11 +90,15 @@ class _LocationSuggestionsWidgetState extends State<LocationSuggestionsWidget> {
         country: 'CA',
       );
 
+      if (!mounted) return; // Check again after async operation
+
       setState(() {
         _suggestions = suggestions;
         _isLoading = false;
       });
     } catch (e) {
+      if (!mounted) return; // Check if widget is still mounted
+
       setState(() {
         _isLoading = false;
       });
@@ -96,6 +107,8 @@ class _LocationSuggestionsWidgetState extends State<LocationSuggestionsWidget> {
 
   Future<void> _onSuggestionSelected(SearchSuggestion suggestion) async {
     if (_currentSessionToken == null) return;
+
+    if (!mounted) return; // Check if widget is still mounted
 
     setState(() {
       _isLoading = true;
@@ -118,6 +131,8 @@ class _LocationSuggestionsWidgetState extends State<LocationSuggestionsWidget> {
     } catch (e) {
       finalLocationDetails = await _searchService.suggestionToLocationDetailsWithCoords(suggestion);
     }
+
+    if (!mounted) return; // Check again after async operations
 
     setState(() {
       _isLoading = false;
@@ -150,7 +165,7 @@ class _LocationSuggestionsWidgetState extends State<LocationSuggestionsWidget> {
       child: ListView.separated(
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
-        padding: EdgeInsets.zero,
+        padding: EdgeInsets.zero, // Remove default padding
         itemCount: _suggestions.length,
         separatorBuilder: (context, index) => const Divider(height: 1),
         itemBuilder: (context, index) {
@@ -195,4 +210,120 @@ class _LocationSuggestionsWidgetState extends State<LocationSuggestionsWidget> {
         return Icons.location_on;
     }
   }
+}
+
+// Updated _buildRouteItem method
+Widget _buildRouteItem({
+  required IconData icon,
+  required Color iconColor,
+  required String title,
+  required String value,
+  required bool isEditing,
+  required TextEditingController controller,
+  required VoidCallback onTap,
+  required VoidCallback onSubmitted,
+  required Function(LocationDetails) onLocationSelected,
+}) {
+  return InkWell(
+    onTap: isEditing ? null : onTap,
+    borderRadius: BorderRadius.circular(12),
+    child: Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Icon(
+                icon,
+                color: iconColor,
+                size: 20,
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.grey[600],
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    
+                    // Your original TextField (UNCHANGED)
+                    if (isEditing)
+                      TextField(
+                        controller: controller,
+                        autofocus: true,
+                        decoration: InputDecoration(
+                          border: InputBorder.none,
+                          contentPadding: EdgeInsets.zero,
+                          hintStyle: TextStyle(
+                            fontSize: 16,
+                            color: Colors.grey[400],
+                          ),
+                        ),
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF1A1A1A),
+                          letterSpacing: -0.2,
+                        ),
+                        textInputAction: TextInputAction.done,
+                        onSubmitted: (_) => onSubmitted(),
+                        onTap: () {
+                          controller.selection = TextSelection.fromPosition(
+                            TextPosition(offset: controller.text.length),
+                          );
+                        },
+                      )
+                    else
+                      GestureDetector(
+                        onTap: onTap,
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(vertical: 4),
+                          child: Text(
+                            value.isEmpty ? title : value,
+                            style: TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: value.isEmpty 
+                                  ? Colors.grey[400] 
+                                  : const Color(0xFF1A1A1A),
+                              letterSpacing: -0.2,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              GestureDetector(
+                onTap: isEditing ? onSubmitted : onTap,
+                child: Icon(
+                  isEditing ? Icons.check : Icons.edit_outlined,
+                  color: isEditing ? Colors.green : Colors.grey[400],
+                  size: 18,
+                ),
+              ),
+            ],
+          ),
+          
+          // Add suggestions widget BELOW your existing TextField
+          if (isEditing)
+            LocationSuggestionsWidget(
+              mapboxAccessToken: "pk.eyJ1IjoiYWhuYWZ1bCIsImEiOiJjbWI4b24zOTkwazdwMnJvaDhva3c1bmRsIn0.IoyYuI4vuqow-6P-5fQaew",
+              controller: controller,
+              onLocationSelected: onLocationSelected,
+              searchTypes: const ['poi', 'address', 'place'],
+            ),
+        ],
+      ),
+    ),
+  );
 }
