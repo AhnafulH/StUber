@@ -150,6 +150,7 @@ class _LocationSuggestionsWidgetState extends State<LocationSuggestionsWidget> {
       child: ListView.separated(
         shrinkWrap: true,
         physics: const NeverScrollableScrollPhysics(),
+        padding: EdgeInsets.zero,
         itemCount: _suggestions.length,
         separatorBuilder: (context, index) => const Divider(height: 1),
         itemBuilder: (context, index) {
