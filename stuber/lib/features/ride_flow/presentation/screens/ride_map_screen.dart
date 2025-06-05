@@ -44,6 +44,7 @@ Widget build(BuildContext context) {
         // Map Component
         MapComponent(
           controller: _mapController,
+          markers: _createMarkers(),
           onMapCreated: (GoogleMapController controller) {
             // Map is ready, you can perform initial operations here
             print('Map created successfully');
@@ -252,6 +253,10 @@ Widget build(BuildContext context) {
                                       // Store the location details for later use
                                       _startingLocationDetails = location;
                                     });
+                                    _mapController.animateCamera(
+                                      LatLng(location.latitude, location.longitude),
+                                      zoom: 15.0,
+                                    );
                                   },
                                   onSubmitted: () {
                                     setState(() {
@@ -299,6 +304,16 @@ Widget build(BuildContext context) {
                                       _isEditingTo = false;
                                       _destinationLocationDetails = location;
                                     });
+
+                                    // Fit both locations in view if both exist
+                                    if (_startingLocationDetails != null) {
+                                      // _fitBothLocationsInView();
+                                    } else {
+                                      _mapController.animateCamera(
+                                        LatLng(location.latitude, location.longitude),
+                                        zoom: 15.0,
+                                      );
+                                    }
                                   },
                                   onSubmitted: () {
                                     setState(() {
@@ -491,6 +506,11 @@ Widget build(BuildContext context) {
                                       // Store the location details for later use
                                       _startingLocationDetails = location;
                                     });
+
+                                    _mapController.animateCamera(
+                                      LatLng(location.latitude, location.longitude),
+                                      zoom: 15.0,
+                                    );
                                   },
                                   onSubmitted: () {
                                     setState(() {
@@ -539,6 +559,16 @@ Widget build(BuildContext context) {
                                       // Store the location details for later use
                                       _destinationLocationDetails = location;
                                     });
+
+                                    // Fit both locations in view if both exist
+                                    if (_startingLocationDetails != null) {
+                                      // _fitBothLocationsInView();
+                                    } else {
+                                      _mapController.animateCamera(
+                                        LatLng(location.latitude, location.longitude),
+                                        zoom: 15.0,
+                                      );
+                                    }
                                   },
                                   onSubmitted: () {
                                     setState(() {
@@ -1392,6 +1422,50 @@ Widget _buildRouteItem({
       }
     });
   }
+
+// Add this method to your RideShareScreen
+Set<Marker> _createMarkers() {
+  Set<Marker> markers = {};
+
+  // Starting location marker (green)
+  if (_startingLocationDetails != null) {
+    markers.add(
+      Marker(
+        markerId: const MarkerId('starting_location'),
+        position: LatLng(
+          _startingLocationDetails!.latitude,
+          _startingLocationDetails!.longitude,
+        ),
+        infoWindow: InfoWindow(
+          title: 'Starting Location',
+          snippet: _startingLocationDetails!.name,
+        ),
+        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueGreen),
+      ),
+    );
+  }
+
+  // Destination marker (red)
+  if (_destinationLocationDetails != null) {
+    markers.add(
+      Marker(
+        markerId: const MarkerId('destination'),
+        position: LatLng(
+          _destinationLocationDetails!.latitude,
+          _destinationLocationDetails!.longitude,
+        ),
+        infoWindow: InfoWindow(
+          title: 'Destination',
+          snippet: _destinationLocationDetails!.name,
+        ),
+        icon: BitmapDescriptor.defaultMarkerWithHue(BitmapDescriptor.hueRed),
+      ),
+    );
+  }
+
+  return markers;
+}
+
 
   @override
   void dispose() {
