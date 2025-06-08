@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
-import 'dart:math' as math;
+import 'package:flutter/gestures.dart';
+import 'package:flutter/foundation.dart';
+import 'package:stuber/features/map/presentation/map_utils.dart';
+import 'dart:async';
 
 class MapController {
   _MapComponentState? _state;
@@ -29,14 +32,15 @@ class MapController {
     _state?.animateCamera(position, zoom: zoom);
   }
   
-  // Add fitBounds method
-  void fitBounds(LatLngBounds bounds) {
-    _state?.fitBounds(bounds);
+  // Add method to trigger marker fitting
+  void fitMarkersInView() {
+    _state?.fitMarkersInView();
   }
   
   Set<Marker> get markers => _state?._allMarkers ?? {};
   
-  GoogleMapController? get mapController => _state?._controller;
+  // Access to GoogleMapController as per documentation
+  GoogleMapController? get mapController => _state?._googleMapController;
 }
 
 class MapComponent extends StatefulWidget {
@@ -62,7 +66,10 @@ class MapComponent extends StatefulWidget {
 }
 
 class _MapComponentState extends State<MapComponent> {
-  GoogleMapController? _controller;
+  // Global vars as per documentation
+  Completer<GoogleMapController> _controller = Completer();
+  late GoogleMapController _googleMapController;
+  
   late CameraPosition _initialCameraPosition;
   final Set<Marker> _internalMarkers = {}; // For markers added via controller
 
@@ -76,15 +83,14 @@ class _MapComponentState extends State<MapComponent> {
     // Set initial camera position
     _initialCameraPosition = widget.initialCameraPosition ?? 
         const CameraPosition(
-          target: LatLng(53.524297, -113.535773),
-          zoom: 11.0, // Zoom out a bit to show Edmonton area
+          target: LatLng(53.524297, -113.535773), // Edmonton
+          zoom: 10,
         );
     
-    // Only add initial markers if explicitly provided - NO DEFAULT MARKERS
+    // Only add initial markers if explicitly provided
     if (widget.initialMarkers != null) {
       _internalMarkers.addAll(widget.initialMarkers!);
     }
-    // Removed the default hardcoded marker
   }
 
   // Combine external markers (from parent) with internal markers
@@ -96,68 +102,69 @@ class _MapComponentState extends State<MapComponent> {
   }
 
   @override
+  void didUpdateWidget(MapComponent oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    
+    // Check if markers have changed and auto-fit if they have
+    if (widget.markers != oldWidget.markers && widget.markers.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _fitMarkersInView();
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
     return GoogleMap(
+      // Add gesture recognizers as per documentation
+      gestureRecognizers: Set()
+        ..add(Factory<PanGestureRecognizer>(
+          () => PanGestureRecognizer())),
       mapType: widget.mapType,
       initialCameraPosition: _initialCameraPosition,
-      markers: _allMarkers, // Use combined markers
-      onMapCreated: (GoogleMapController controller) {
-        _controller = controller;
-        widget.onMapCreated?.call(controller);
-        
-        // If we have external markers, fit them in view
-        if (widget.markers.isNotEmpty) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            _fitMarkersInView();
-          });
-        }
-      },
+      zoomControlsEnabled: true,
       myLocationEnabled: true,
       myLocationButtonEnabled: true,
-      zoomControlsEnabled: true,
+      onMapCreated: (GoogleMapController controller) {
+        _controller.complete(controller);
+        _googleMapController = controller;
+        _googleMapController.getVisibleRegion();
+
+        // Call parent onMapCreated if provided
+        widget.onMapCreated?.call(controller);
+
+        // Auto-fit markers using MapUtils if they exist
+        if (_allMarkers.isNotEmpty) {
+          _fitMarkersInView();
+        }
+      },
+      // Set markers as per documentation
+      markers: Set.from(_allMarkers),
       compassEnabled: true,
     );
   }
 
-  // Fit all markers in view (only if there are markers to fit)
+  // Separate method for fitting markers in view
   void _fitMarkersInView() {
-    if (_allMarkers.isEmpty || _controller == null) return;
+    if (_allMarkers.isEmpty) return;
     
-    // If only one marker, just center on it
-    if (_allMarkers.length == 1) {
-      final marker = _allMarkers.first;
-      animateCamera(marker.position, zoom: 15.0);
-      return;
-    }
-
-    // If multiple markers, fit them all in view
-    double minLat = double.infinity;
-    double maxLat = -double.infinity;
-    double minLng = double.infinity;
-    double maxLng = -double.infinity;
-
-    for (Marker marker in _allMarkers) {
-      minLat = math.min(minLat, marker.position.latitude);
-      maxLat = math.max(maxLat, marker.position.latitude);
-      minLng = math.min(minLng, marker.position.longitude);
-      maxLng = math.max(maxLng, marker.position.longitude);
-    }
-
-    // Add padding
-    double latPadding = (maxLat - minLat) * 0.3;
-    double lngPadding = (maxLng - minLng) * 0.3;
-
-    // Minimum padding
-    latPadding = math.max(latPadding, 0.01);
-    lngPadding = math.max(lngPadding, 0.01);
-
-    LatLngBounds bounds = LatLngBounds(
-      southwest: LatLng(minLat - latPadding, minLng - lngPadding),
-      northeast: LatLng(maxLat + latPadding, maxLng + lngPadding),
-    );
-
-    _controller!.animateCamera(
-      CameraUpdate.newLatLngBounds(bounds, 100.0),
+    Set<Marker> _markers = Set.from(_allMarkers);
+    
+    // Use MapUtils exactly as per documentation
+    Future.delayed(
+      Duration(milliseconds: 200),
+      () {
+        if (mounted) {
+          _googleMapController.animateCamera(
+            CameraUpdate.newLatLngBounds(
+              MapUtils.boundsFromLatLngList(
+                _markers.map((marker) => marker.position).toList()
+              ),
+              100 // padding
+            )
+          );
+        }
+      }
     );
   }
 
@@ -191,7 +198,7 @@ class _MapComponentState extends State<MapComponent> {
   }
 
   void moveCamera(LatLng position, {double zoom = 14.0}) {
-    _controller?.moveCamera(
+    _googleMapController.moveCamera(
       CameraUpdate.newCameraPosition(
         CameraPosition(target: position, zoom: zoom),
       ),
@@ -199,22 +206,22 @@ class _MapComponentState extends State<MapComponent> {
   }
 
   void animateCamera(LatLng position, {double zoom = 14.0}) {
-    _controller?.animateCamera(
-      CameraUpdate.newCameraPosition(
-        CameraPosition(target: position, zoom: zoom),
-      ),
-    );
+    if (_controller.isCompleted) {
+      _googleMapController.animateCamera(
+        CameraUpdate.newCameraPosition(
+          CameraPosition(target: position, zoom: zoom),
+        ),
+      );
+    }
   }
 
-  void fitBounds(LatLngBounds bounds) {
-    _controller?.animateCamera(
-      CameraUpdate.newLatLngBounds(bounds, 100.0),
-    );
+  // Add method to manually trigger marker fitting
+  void fitMarkersInView() {
+    _fitMarkersInView();
   }
 
   @override
   void dispose() {
-    _controller?.dispose();
     super.dispose();
   }
 }
