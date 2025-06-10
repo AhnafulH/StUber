@@ -45,5 +45,27 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+
+	<!-- Basic location permission when app is open -->
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Stuber needs location access to show your current position and provide ride navigation.</string>
+
+	<!-- Background location for ride tracking -->
+	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+	<string>Stuber needs location access even when backgrounded to provide continuous navigation and track your ride progress.</string>
+
+	<!-- Only needed if you support iOS 10 and below -->
+	<key>NSLocationAlwaysUsageDescription</key>
+	<string>Stuber needs location access to provide navigation and ride tracking services.</string>
+
+	<!-- For precise location requests (iOS 14+) -->
+	<key>NSLocationTemporaryUsageDescriptionDictionary</key>
+	<dict>
+		<key>navigation</key>
+		<string>Stuber requires precise location access for accurate turn-by-turn navigation during your ride.</string>
+		<key>ride_tracking</key>
+		<string>Stuber needs precise location to accurately track your ride progress and estimated arrival time.</string>
+	</dict>
+
 </dict>
 </plist>
