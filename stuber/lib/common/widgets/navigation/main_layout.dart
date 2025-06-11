@@ -10,7 +10,7 @@ import 'package:stuber/features/ride_request/presentation/widget/bottom_sheet.da
 import 'package:stuber/features/ride_flow/presentation/screens/ride_map_screen.dart';
 import 'package:stuber/features/location_search_autocomplete/search_autocomplete.dart';
 import 'package:stuber/features/location_search_autocomplete/location_search.dart';
-
+import 'package:stuber/features/map/domain/location_test.dart';
 class MainLayout extends StatefulWidget {
   const MainLayout({Key? key}) : super(key: key);
 
@@ -28,7 +28,8 @@ class _MainLayoutState extends State<MainLayout> {
     const RideShareScreen(),
     // const RideMapScreen(),
     // const SearchScreen(),
-    const LocationSearchScreen(),
+    MyLocationWidget(),
+    // const LocationSearchScreen(),
     const MapPage(),
     // const FavoritesScreen(),
     const ProfileScreen(),

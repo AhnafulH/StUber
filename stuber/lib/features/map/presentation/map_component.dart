@@ -125,6 +125,7 @@ class _MapComponentState extends State<MapComponent> {
       zoomControlsEnabled: true,
       myLocationEnabled: true,
       myLocationButtonEnabled: true,
+      compassEnabled: true,
       onMapCreated: (GoogleMapController controller) {
         _controller.complete(controller);
         _googleMapController = controller;
@@ -140,7 +141,7 @@ class _MapComponentState extends State<MapComponent> {
       },
       // Set markers as per documentation
       markers: Set.from(_allMarkers),
-      compassEnabled: true,
+      // compassEnabled: true,
     );
   }
 
