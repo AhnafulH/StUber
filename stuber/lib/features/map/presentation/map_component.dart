@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_maps_flutter/google_maps_flutter.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/foundation.dart';
 import 'package:stuber/features/map/presentation/map_utils.dart';
+import 'package:stuber/features/map/domain/location_service.dart';
 import 'dart:async';
 
 class MapController {
@@ -72,6 +74,7 @@ class _MapComponentState extends State<MapComponent> {
   
   late CameraPosition _initialCameraPosition;
   final Set<Marker> _internalMarkers = {}; // For markers added via controller
+  late Future<CameraPosition> _initialCameraPositionFuture;
 
   @override
   void initState() {
@@ -91,6 +94,33 @@ class _MapComponentState extends State<MapComponent> {
     if (widget.initialMarkers != null) {
       _internalMarkers.addAll(widget.initialMarkers!);
     }
+
+    _initialCameraPositionFuture = _getInitialCameraPosition();
+  }
+
+  Future<CameraPosition> _getInitialCameraPosition() async {
+    // If a specific initial position is provided, use it
+    if (widget.initialCameraPosition != null) {
+      return widget.initialCameraPosition!;
+    }
+
+    try {
+      Position? position = await LocationService.getCurrentLocation();
+      if (position != null) {
+        return CameraPosition(
+          target: LatLng(position.latitude, position.longitude),
+          zoom: 15.0,
+        );
+      }
+    } catch (e) {
+      print('Error getting user location: $e');
+    }
+
+    // Fallback to Edmonton
+    return const CameraPosition(
+      target: LatLng(53.524297, -113.535773),
+      zoom: 10,
+    );
   }
 
   // Combine external markers (from parent) with internal markers
@@ -113,37 +143,88 @@ class _MapComponentState extends State<MapComponent> {
     }
   }
 
+
   @override
   Widget build(BuildContext context) {
-    return GoogleMap(
-      // Add gesture recognizers as per documentation
-      gestureRecognizers: Set()
-        ..add(Factory<PanGestureRecognizer>(
-          () => PanGestureRecognizer())),
-      mapType: widget.mapType,
-      initialCameraPosition: _initialCameraPosition,
-      zoomControlsEnabled: true,
-      myLocationEnabled: true,
-      myLocationButtonEnabled: true,
-      compassEnabled: true,
-      onMapCreated: (GoogleMapController controller) {
-        _controller.complete(controller);
-        _googleMapController = controller;
-        _googleMapController.getVisibleRegion();
-
-        // Call parent onMapCreated if provided
-        widget.onMapCreated?.call(controller);
-
-        // Auto-fit markers using MapUtils if they exist
-        if (_allMarkers.isNotEmpty) {
-          _fitMarkersInView();
+    return FutureBuilder<CameraPosition>(
+      future: _initialCameraPositionFuture,
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(height: 16),
+                Text('Getting your location...'),
+              ],
+            ),
+          );
         }
+
+        final cameraPosition = snapshot.data ?? const CameraPosition(
+          target: LatLng(53.524297, -113.535773),
+          zoom: 10,
+        );
+
+        return GoogleMap(
+          gestureRecognizers: Set()
+            ..add(Factory<PanGestureRecognizer>(
+              () => PanGestureRecognizer())),
+          mapType: widget.mapType,
+          initialCameraPosition: cameraPosition,
+          zoomControlsEnabled: true,
+          myLocationEnabled: true,
+          myLocationButtonEnabled: true,
+          compassEnabled: true,
+          onMapCreated: (GoogleMapController controller) {
+            _controller.complete(controller);
+            _googleMapController = controller;
+            _googleMapController.getVisibleRegion();
+
+            widget.onMapCreated?.call(controller);
+
+            if (_allMarkers.isNotEmpty) {
+              _fitMarkersInView();
+            }
+          },
+          markers: Set.from(_allMarkers),
+        );
       },
-      // Set markers as per documentation
-      markers: Set.from(_allMarkers),
-      // compassEnabled: true,
     );
   }
+
+  // @override
+  // Widget build(BuildContext context) {
+  //   return GoogleMap(
+  //     // Add gesture recognizers as per documentation
+  //     gestureRecognizers: Set()
+  //       ..add(Factory<PanGestureRecognizer>(
+  //         () => PanGestureRecognizer())),
+  //     mapType: widget.mapType,
+  //     initialCameraPosition: _initialCameraPosition,
+  //     zoomControlsEnabled: true,
+  //     myLocationEnabled: true,
+  //     myLocationButtonEnabled: true,
+  //     compassEnabled: true,
+  //     onMapCreated: (GoogleMapController controller) {
+  //       _controller.complete(controller);
+  //       _googleMapController = controller;
+  //       _googleMapController.getVisibleRegion();
+
+  //       // Call parent onMapCreated if provided
+  //       widget.onMapCreated?.call(controller);
+
+  //       // Auto-fit markers using MapUtils if they exist
+  //       if (_allMarkers.isNotEmpty) {
+  //         _fitMarkersInView();
+  //       }
+  //     },
+  //     // Set markers as per documentation
+  //     markers: Set.from(_allMarkers),
+  //     // compassEnabled: true,
+  //   );
+  // }
 
   // Separate method for fitting markers in view
   void _fitMarkersInView() {
