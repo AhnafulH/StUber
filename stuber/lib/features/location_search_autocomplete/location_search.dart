@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:stuber/features/location_search_autocomplete/search_autocomplete.dart';
-// import 'package:stuber/config/mapbox_config.dart'; // Add this import
 
 class LocationSearchScreen extends StatefulWidget {
   const LocationSearchScreen({Key? key}) : super(key: key);
@@ -438,9 +437,6 @@ class _LocationSearchScreenState extends State<LocationSearchScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Booking your ride...')),
       );
-      
-      // You can navigate to map screen or ride tracking screen here
-      // Navigator.push(context, MaterialPageRoute(builder: (context) => RideTrackingScreen()));
     }
   }
 }
