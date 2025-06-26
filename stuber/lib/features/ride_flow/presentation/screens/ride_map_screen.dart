@@ -4,6 +4,9 @@ import 'package:stuber/features/map/presentation/map_component.dart';
 import 'package:animated_toggle_switch/animated_toggle_switch.dart';
 import 'package:stuber/features/location_search_autocomplete/search_autocomplete.dart';
 import 'package:stuber/features/location_search_autocomplete/location_suggestion_widget.dart';
+import 'package:stuber/features/ride_flow/data/services/ride_service.dart';
+import 'package:stuber/features/ride_flow/data/models/ride_request_model.dart';
+
 class RideShareScreen extends StatefulWidget {
   const RideShareScreen({Key? key}) : super(key: key);
 
@@ -14,8 +17,10 @@ class RideShareScreen extends StatefulWidget {
 class _RideShareScreenState extends State<RideShareScreen> {
   final MapController _mapController = MapController();
   final DraggableScrollableController _bottomSheetController = DraggableScrollableController();
-  bool _isRequestingRide = false;
+  final RideService _rideService = RideService();
 
+  bool _isRequestingRide = false;
+   bool _isSubmitting = false;
   // State variables for ride details
   String _startingLocation = ''; // Current Location
   String _destination = ''; //Where are you going?
@@ -1350,34 +1355,122 @@ Widget _buildRouteItem({
   }
 
   // Handle ride request submission
-  void _handleRideRequest() {
-    // Validate inputs
-    if (_destination == 'Where are you going?') {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a destination')),
-      );
-      return;
-    }
+  // void _handleRideRequest() {
+  //   // Validate inputs
+  //   if (_destination == 'Where are you going?') {
+  //     ScaffoldMessenger.of(context).showSnackBar(
+  //       const SnackBar(content: Text('Please select a destination')),
+  //     );
+  //     return;
+  //   }
     
+  //   if (_departureTime == null) {
+  //     ScaffoldMessenger.of(context).showSnackBar(
+  //       const SnackBar(content: Text('Please select a departure time')),
+  //     );
+  //     return;
+  //   }
+
+  //   // Process ride request
+  //   print('Ride Request:');
+  //   print('From: $_startingLocation');
+  //   print('To: $_destination');
+  //   print('Seats: $_requestedSeats');
+  //   print('Time: ${_departureTime!.format(context)}');
+    
+  //   ScaffoldMessenger.of(context).showSnackBar(
+  //     const SnackBar(content: Text('Ride request submitted!')),
+  //   );
+  // }
+
+  Future<void> _handleRideRequest() async {
+    // Basic validation
+    if (!_validateBasicInputs()) return;
+
+    setState(() => _isSubmitting = true);
+
+    try {
+      print('🎯 UI: Starting ride request creation...');
+
+      final rideRequest = await _rideService.createRideRequestFromForm(
+        startingLocation: _startingLocation,
+        destination: _destination,
+        seatsNeeded: _requestedSeats,
+        selectedDate: _selectedDate!,
+        departureTime: _departureTime!,
+        startingLatitude: _startingLocationDetails?.latitude,
+        startingLongitude: _startingLocationDetails?.longitude,
+        destinationLatitude: _destinationLocationDetails?.latitude,
+        destinationLongitude: _destinationLocationDetails?.longitude,
+      );
+
+      // Success!
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('🎉 Ride request created successfully!\nID: ${rideRequest.id}'),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 3),
+        ),
+      );
+
+      print('✅ UI: Ride request created with ID: ${rideRequest.id}');
+      
+      // Optional: Clear form
+      // _clearForm();
+
+    } on ValidationException catch (e) {
+      print('⚠️ UI: Validation error: ${e.message}');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.message),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    } catch (e) {
+      print('❌ UI: Unexpected error: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error creating ride request: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      setState(() => _isSubmitting = false);
+    }
+  }
+
+  // Simple validation helper
+  bool _validateBasicInputs() {
+    if (_startingLocation.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a starting location')),
+      );
+      return false;
+    }
+
+    if (_destination.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a destination')),
+      );
+      return false;
+    }
+
+    if (_selectedDate == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select a date')),
+      );
+      return false;
+    }
+
     if (_departureTime == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please select a departure time')),
       );
-      return;
+      return false;
     }
 
-    // Process ride request
-    print('Ride Request:');
-    print('From: $_startingLocation');
-    print('To: $_destination');
-    print('Seats: $_requestedSeats');
-    print('Time: ${_departureTime!.format(context)}');
-    
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Ride request submitted!')),
-    );
+    return true;
   }
-
   // Handle ride offer submission
   void _handleRideOffer() {
     // Validate inputs
