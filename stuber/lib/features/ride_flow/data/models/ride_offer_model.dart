@@ -53,8 +53,6 @@ class RideOfferModel {
       destinationLongitude: json['destination_longitude']?.toDouble(),
       seatsAvailable: json['seats_needed'],
       departureDateTime: DateTime.parse(json['departure_datetime']),
-      // status: json['status'] ?? 'pending',
-      // notes: json['notes'],
       createdAt: json['created_at'] != null 
           ? DateTime.parse(json['created_at']) 
           : null,
@@ -63,6 +61,6 @@ class RideOfferModel {
 
   @override
   String toString() {
-    return 'RideRequest(from: $startingLocation, to: $destination, seats: $seatsAvailable, departure: $departureDateTime)';
+    return 'RideOffer(from: $startingLocation, to: $destination, seats: $seatsAvailable, departure: $departureDateTime)';
   }
 }
