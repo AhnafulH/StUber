@@ -51,8 +51,9 @@ class RideOfferModel {
       destination: json['destination'],
       destinationLatitude: json['destination_latitude']?.toDouble(),
       destinationLongitude: json['destination_longitude']?.toDouble(),
-      seatsAvailable: json['seats_needed'],
+      seatsAvailable: json['seats_available'],
       departureDateTime: DateTime.parse(json['departure_datetime']),
+      maxDetourDistance: json['max_detour_distance'],
       createdAt: json['created_at'] != null 
           ? DateTime.parse(json['created_at']) 
           : null,
