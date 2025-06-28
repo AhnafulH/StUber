@@ -6,6 +6,8 @@ import 'package:stuber/features/location_search_autocomplete/search_autocomplete
 import 'package:stuber/features/location_search_autocomplete/location_suggestion_widget.dart';
 import 'package:stuber/features/ride_flow/data/services/ride_service.dart';
 import 'package:stuber/features/ride_flow/data/models/ride_request_model.dart';
+import 'package:stuber/features/ride_flow/data/services/ride_offer_service.dart';
+import 'package:stuber/features/ride_flow/data/models/ride_offer_model.dart';
 
 class RideShareScreen extends StatefulWidget {
   const RideShareScreen({Key? key}) : super(key: key);
@@ -17,7 +19,9 @@ class RideShareScreen extends StatefulWidget {
 class _RideShareScreenState extends State<RideShareScreen> {
   final MapController _mapController = MapController();
   final DraggableScrollableController _bottomSheetController = DraggableScrollableController();
+
   final RideService _rideService = RideService();
+   final RideOfferService _rideOfferService = RideOfferService();
 
   bool _isRequestingRide = false;
    bool _isSubmitting = false;
@@ -1472,33 +1476,87 @@ Widget _buildRouteItem({
     return true;
   }
   // Handle ride offer submission
-  void _handleRideOffer() {
-    // Validate inputs
-    if (_destination == 'Where are you going?') {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a destination')),
-      );
-      return;
-    }
+  // void _handleRideOffer() {
+  //   // Validate inputs
+  //   if (_destination == 'Where are you going?') {
+  //     ScaffoldMessenger.of(context).showSnackBar(
+  //       const SnackBar(content: Text('Please select a destination')),
+  //     );
+  //     return;
+  //   }
     
-    if (_departureTime == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a departure time')),
-      );
-      return;
-    }
+  //   if (_departureTime == null) {
+  //     ScaffoldMessenger.of(context).showSnackBar(
+  //       const SnackBar(content: Text('Please select a departure time')),
+  //     );
+  //     return;
+  //   }
 
-    // Process ride offer
-    print('Ride Offer:');
-    print('From: $_startingLocation');
-    print('To: $_destination');
-    print('Available Seats: $_availableSeats');
-    print('Time: ${_departureTime!.format(context)}');
-    print('Max Distance: ${_maxDistance}km');
+  //   // Process ride offer
+  //   print('Ride Offer:');
+  //   print('From: $_startingLocation');
+  //   print('To: $_destination');
+  //   print('Available Seats: $_availableSeats');
+  //   print('Time: ${_departureTime!.format(context)}');
+  //   print('Max Distance: ${_maxDistance}km');
     
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Ride offer posted!')),
-    );
+  //   ScaffoldMessenger.of(context).showSnackBar(
+  //     const SnackBar(content: Text('Ride offer posted!')),
+  //   );
+  // }
+
+  Future<void> _handleRideOffer() async {
+    // Basic validation
+    if (!_validateBasicInputs()) return;
+
+    setState(() => _isSubmitting = true);
+
+    try {
+      print('🎯 UI: Starting ride offer creation...');
+
+      final rideOffer = await _rideOfferService.createRideOfferFromForm(
+        startingLocation: _startingLocation,
+        destination: _destination,
+        seatsAvailable: _availableSeats,
+        selectedDate: _selectedDate!,
+        departureTime: _departureTime!,
+        maxDetourDistance: _maxDistance,
+        startingLatitude: _startingLocationDetails?.latitude,
+        startingLongitude: _startingLocationDetails?.longitude,
+        destinationLatitude: _destinationLocationDetails?.latitude,
+        destinationLongitude: _destinationLocationDetails?.longitude,
+      );
+
+      // Success!
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('🎉 Ride offer posted successfully!\nID: ${rideOffer.id}'),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 3),
+        ),
+      );
+
+      print('✅ UI: Ride offer created with ID: ${rideOffer.id}');
+      
+    } on ValidationException catch (e) {
+      print('⚠️ UI: Validation error: ${e.message}');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(e.message),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    } catch (e) {
+      print('❌ UI: Unexpected error: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error creating ride offer: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    } finally {
+      setState(() => _isSubmitting = false);
+    }
   }
 
   void _showDatePicker(BuildContext context) {
