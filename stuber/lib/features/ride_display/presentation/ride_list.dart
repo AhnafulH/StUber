@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:stuber/features/ride_display/presentation/ride_model.dart';
 import 'package:stuber/features/ride_display/presentation/ride_card.dart';
 
-
 class RideList extends StatelessWidget {
   const RideList({Key? key}) : super(key: key);
 
@@ -16,23 +15,88 @@ class RideList extends StatelessWidget {
         destination: 'Airport Terminal 2',
         numberOfPassengers: 2,
         dateTime: DateTime.now().add(const Duration(hours: 2)),
-        status: 'pending',
+        status: 'confirmed',
+        driver: Driver(
+          id: 'driver001',
+          name: 'John Smith',
+          phoneNumber: '+1234567890',
+          profileImage: '', // Empty for demo - will show icon
+          rating: 4.8,
+        ),
+        car: Car(
+          id: 'car001',
+          make: 'Toyota',
+          model: 'Camry',
+          color: 'Silver',
+          licensePlate: 'ABC-1234',
+          year: 2022,
+        ),
+        passengers: [
+          Passenger(
+            id: 'passenger001',
+            name: 'Sarah Johnson',
+            phoneNumber: '+1234567891',
+          ),
+        ],
       ),
       Ride(
         id: 'ride002',
         startLocation: 'Central Park',
         destination: '456 Oak Avenue, Uptown',
-        numberOfPassengers: 1,
+        numberOfPassengers: 3,
         dateTime: DateTime.now().add(const Duration(days: 1)),
-        status: 'confirmed',
+        status: 'pending',
+        driver: Driver(
+          id: 'driver002',
+          name: 'Emily Davis',
+          phoneNumber: '+1234567892',
+          profileImage: '', // Empty for demo
+          rating: 4.9,
+        ),
+        car: Car(
+          id: 'car002',
+          make: 'Honda',
+          model: 'Civic',
+          color: 'Blue',
+          licensePlate: 'XYZ-5678',
+          year: 2021,
+        ),
+        passengers: [
+          Passenger(
+            id: 'passenger002',
+            name: 'Mike Wilson',
+            phoneNumber: '+1234567893',
+          ),
+          Passenger(
+            id: 'passenger003',
+            name: 'Lisa Brown',
+            phoneNumber: '+1234567894',
+          ),
+        ],
       ),
       Ride(
         id: 'ride003',
         startLocation: 'Shopping Mall',
         destination: 'University Campus',
-        numberOfPassengers: 3,
+        numberOfPassengers: 1,
         dateTime: DateTime.now().subtract(const Duration(days: 1)),
         status: 'completed',
+        driver: Driver(
+          id: 'driver003',
+          name: 'Robert Lee',
+          phoneNumber: '+1234567895',
+          profileImage: '', // Empty for demo
+          rating: 4.7,
+        ),
+        car: Car(
+          id: 'car003',
+          make: 'Nissan',
+          model: 'Altima',
+          color: 'Black',
+          licensePlate: 'DEF-9012',
+          year: 2023,
+        ),
+        passengers: [],
       ),
     ];
 
@@ -128,6 +192,16 @@ class RideList extends StatelessWidget {
                 // Navigate to edit form
               },
             ),
+            if (ride.driver != null) ...[
+              ListTile(
+                leading: const Icon(Icons.message),
+                title: const Text('Message Driver'),
+                onTap: () {
+                  Navigator.pop(context);
+                  // Open messaging
+                },
+              ),
+            ],
             ListTile(
               leading: const Icon(Icons.cancel),
               title: const Text('Cancel Ride'),
