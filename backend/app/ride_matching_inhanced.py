@@ -543,8 +543,8 @@ def test_distance_calculation():
         # Test with your actual data
         requests, offers = get_all_requests_and_offers()
         if requests and offers:
-            req = requests[0]
-            offer = offers[0]
+            req = requests[4]
+            offer = offers[3]
             
             test_distance = supabase.rpc('calculate_distance', {
                 'lat1': req['starting_latitude'],
@@ -587,12 +587,12 @@ if __name__ == "__main__":
     
     # Test with actual data if available
     if requests and offers:
-        print(f"\n1️⃣ 🕐 Testing basic matching with request ID: {requests[0]['id']}")
-        basic_matches = find_matching_ride_offers(requests[0]['id'])
+        print(f"\n1️⃣ 🕐 Testing basic matching with request ID: {requests[4]['id']}")
+        basic_matches = find_matching_ride_offers(requests[4]['id'])
         
         print(f"\n2️⃣ 🎯 Testing proximity matching:")
         try:
-            proximity_matches = find_matching_offers_with_proximity(requests[0])
+            proximity_matches = find_matching_offers_with_proximity(requests[4])
             print(f"✅ Proximity matching working!")
         except Exception as e:
             print(f"⚠️ Proximity matching issue: {e}")
