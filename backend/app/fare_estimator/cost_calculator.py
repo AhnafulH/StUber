@@ -1,4 +1,5 @@
 import requests
+from typing import Optional
 
 token = ""
 
@@ -6,7 +7,7 @@ token = ""
 # Going with the mapbox/driving profile, traffic shouldn't matter for distances
 url = "https://api.mapbox.com/directions-matrix/v1/mapbox/driving/"
 
-def calculate_costs(coords: list, config: tuple) -> list:
+def calculate_costs(coords: list, config: tuple) -> Optional[list]:
     """
     coords: Coordinates('longitude, latitude') for the start point, pickup points, and destination point
     config: Tuple of gas price ($/L) and fuel efficiency(L/km)
