@@ -1,0 +1,8 @@
+[project]
+name = "cost-calculator"
+version = "0.1.0"
+description = "Module for estimating fare"
+
+[build-system]
+build-backend = "flit_core.buildapi"
+requires = ["flit_core >=3.2,<4"]
