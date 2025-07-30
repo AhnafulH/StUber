@@ -1,5 +1,6 @@
 from cost_calculator import calculate_costs
 from cost_calculator import convert_fmt
+from cost_calculator import path_difference_method
 
 if __name__ == "__main__":
     coords = [
@@ -13,7 +14,7 @@ if __name__ == "__main__":
     A, B, C = coords[1:4]
     
     # First ordering
-    c1 = calculate_costs(coords, (2, 1/6))
+    c1 = path_difference_method(coords, (2, 1/6))
     if c1 is not None:
         print("Order A, B, C")
         for c, n in zip(c1, list('ABC')):
@@ -22,7 +23,7 @@ if __name__ == "__main__":
 
     # Second ordering B, A, C
     coords[1], coords[2] = B, A
-    c2 = calculate_costs(coords, (2, 1/6))
+    c2 = path_difference_method(coords, (2, 1/6))
     if c2 is not None:
         c2[0], c2[1] = c2[1], c2[0]
         print("Order B, A, C")
@@ -35,7 +36,7 @@ if __name__ == "__main__":
     coords[1] = C
     coords[2] = A
     coords[3] = B
-    c3 = calculate_costs(coords, (2, 1/6))
+    c3 = path_difference_method(coords, (2, 1/6))
     if c3 is not None:
         c3[0], c3[1], c3[2] = c3[2], c3[0], c3[1]
         print("Order C, A, B")
