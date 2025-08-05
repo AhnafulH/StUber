@@ -131,18 +131,16 @@ def path_difference_method(coords: list, config: tuple) -> Optional[list]:
     split_coords = [c.split(',') for c in coords]
     crds = [[float(c[0]), float(c[1])] for c in split_coords] # Proper type for taking euclidean norm
 
-    waypoints = get_waypoints(coords[0], coords[1])
+    waypoints = get_waypoints(coords[0], coords[-1])
 
     if waypoints is None:
         raise Exception("No waypoints in route")
     
-    detour_coords = []
     costs = []
     for j in range(1, len(crds) - 1):
         distances = list(map(math.dist, waypoints, repeat(crds[j])))
         detour_index = min(range(len(distances)), key=lambda i: distances[i])
         detour_coord = waypoints[detour_index]
-        detour_coords.append(detour_coord)
         detour_dist = get_distance(tuple(crds[j]), tuple(detour_coord)) # 'l' in documentation
         leftover_dist = get_distance(tuple(detour_coord), coords[len(coords) - 1]) # 's' in documentation
         if detour_dist is None or leftover_dist is None:
@@ -150,7 +148,7 @@ def path_difference_method(coords: list, config: tuple) -> Optional[list]:
         cost = ((2 * detour_dist + leftover_dist) / 1000) * config[0] * config[1]
         costs.append(cost) 
         print(f"Detour for pickup point {crds[j]} is {detour_coord}")
-    
+
     return costs
 
 
