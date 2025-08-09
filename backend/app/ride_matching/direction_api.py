@@ -1,11 +1,17 @@
 import requests
 import json
+import plotly.graph_objects as go
+import pandas as pd
+import numpy as np
+from shapely.geometry import LineString, Point
+from shapely.ops import transform
+from pyproj import Transformer
 from typing import Dict, List, Tuple, Optional
 
-class MapboxDirections:
+class RouteCorridorVisualizer:
     def __init__(self, access_token: str):
         """
-        Initialize Mapbox Directions API client
+        Initialize Mapbox Directions API client with corridor visualization
         
         Args:
             access_token: Your Mapbox API access token
@@ -16,20 +22,14 @@ class MapboxDirections:
     def get_directions(
         self,
         coordinates: List[Tuple[float, float]],
-        profile: str = "mapbox/driving-traffic",
-        geometries: str = "polyline",
-        overview: str = "full",
-        alternatives: bool = False
+        profile: str = "mapbox/driving-traffic"
     ) -> Dict:
         """
         Get directions between waypoints
         
         Args:
             coordinates: List of (longitude, latitude) tuples
-            profile: Routing profile (driving-traffic, driving, walking, cycling)
-            geometries: Response format (polyline, polyline6, geojson)
-            overview: Geometry detail (full, simplified, false)
-            alternatives: Whether to return alternative routes
+            profile: Routing profile 
             
         Returns:
             JSON response from Mapbox API
@@ -41,18 +41,12 @@ class MapboxDirections:
         # Build URL
         url = f"{self.base_url}/{profile}/{coords_str}"
         
-        # Parameters - only include non-default values
+        # Parameters
         params = {
             "access_token": self.access_token,
+            "geometries": "geojson",
+            "overview": "full"
         }
-        
-        # Only add parameters if they're not default values
-        if geometries != "polyline":
-            params["geometries"] = geometries
-        if overview != "simplified":
-            params["overview"] = overview
-        if alternatives:  # Only add if True
-            params["alternatives"] = "true"
         
         # Make request
         try:
@@ -62,105 +56,268 @@ class MapboxDirections:
             
         except requests.exceptions.RequestException as e:
             print(f"Error making request: {e}")
-            # Try to get more error details
-            try:
-                error_response = response.json()
-                print(f"API Error Details: {error_response}")
-            except:
-                print(f"Raw response: {response.text}")
-            return None
-        except json.JSONDecodeError as e:
-            print(f"Error parsing JSON: {e}")
             return None
     
-    def print_route_info(self, response: Dict) -> None:
-        """Print basic route information"""
+    def extract_coordinates(self, route_geometry) -> List[Tuple[float, float]]:
+        """
+        Extract coordinates from route geometry
+        
+        Args:
+            route_geometry: GeoJSON geometry dict
+            
+        Returns:
+            List of (latitude, longitude) tuples
+        """
+        
+        if isinstance(route_geometry, dict) and route_geometry.get("type") == "LineString":
+            coordinates = route_geometry["coordinates"]
+            # Convert from [lng, lat] to (lat, lng) for easier handling
+            return [(coord[1], coord[0]) for coord in coordinates]
+        else:
+            print(f"Unexpected geometry type: {type(route_geometry)}")
+            return []
+    
+    def create_buffer_corridor(
+        self, 
+        coordinates: List[Tuple[float, float]], 
+        buffer_distance_meters: float = 2000
+    ) -> List[Tuple[float, float]]:
+        """
+        Create a buffer corridor around the route
+        
+        Args:
+            coordinates: List of (lat, lng) tuples
+            buffer_distance_meters: Buffer distance in meters
+            
+        Returns:
+            List of (lat, lng) tuples forming the buffer polygon
+        """
+        
+        if len(coordinates) < 2:
+            return []
+        
+        try:
+            # Convert to lng, lat for Shapely (Shapely expects x, y format)
+            shapely_coords = [(lng, lat) for lat, lng in coordinates]
+            
+            # Create LineString
+            line = LineString(shapely_coords)
+            
+            # Create transformer for meters-based projection (approximate)
+            # Using Web Mercator for simplicity
+            transformer_to_meters = Transformer.from_crs("EPSG:4326", "EPSG:3857", always_xy=True)
+            transformer_to_degrees = Transformer.from_crs("EPSG:3857", "EPSG:4326", always_xy=True)
+            
+            # Transform to meters
+            line_meters = transform(transformer_to_meters.transform, line)
+            
+            # Create buffer in meters
+            buffer_meters = line_meters.buffer(buffer_distance_meters)
+            
+            # Transform back to lat/lng
+            buffer_degrees = transform(transformer_to_degrees.transform, buffer_meters)
+            
+            # Extract exterior coordinates
+            if hasattr(buffer_degrees, 'exterior'):
+                buffer_coords = list(buffer_degrees.exterior.coords)
+                # Convert back to (lat, lng) format
+                return [(lat, lng) for lng, lat in buffer_coords]
+            else:
+                print("Buffer creation failed - no exterior boundary")
+                return []
+                
+        except Exception as e:
+            print(f"Error creating buffer: {e}")
+            # Fallback: simple circular buffer around each point
+            return self.simple_buffer(coordinates, buffer_distance_meters)
+    
+    def simple_buffer(
+        self, 
+        coordinates: List[Tuple[float, float]], 
+        buffer_distance_meters: float
+    ) -> List[Tuple[float, float]]:
+        """
+        Simple fallback buffer using circles around route points
+        
+        Args:
+            coordinates: List of (lat, lng) tuples
+            buffer_distance_meters: Buffer distance in meters
+            
+        Returns:
+            List of (lat, lng) tuples approximating buffer
+        """
+        
+        # Approximate degrees per meter (rough conversion)
+        meters_per_degree = 111000  # Approximate
+        buffer_degrees = buffer_distance_meters / meters_per_degree
+        
+        buffer_points = []
+        
+        for i, (lat, lng) in enumerate(coordinates[::max(1, len(coordinates)//20)]):
+            # Create points around each coordinate
+            for angle in range(0, 360, 30):  # Every 30 degrees
+                angle_rad = np.radians(angle)
+                offset_lat = lat + buffer_degrees * np.sin(angle_rad)
+                offset_lng = lng + buffer_degrees * np.cos(angle_rad)
+                buffer_points.append((offset_lat, offset_lng))
+        
+        return buffer_points
+    
+    def plot_route_with_corridor(
+        self, 
+        response: Dict, 
+        buffer_distance_meters: float = 2000,
+        title: str = "Route with Buffer Corridor"
+    ) -> None:
+        """
+        Plot the route with buffer corridor using Plotly
+        
+        Args:
+            response: Response from Mapbox Directions API
+            buffer_distance_meters: Buffer distance in meters
+            title: Title for the plot
+        """
+        
         if not response or response.get("code") != "Ok":
-            print("❌ No valid route found")
+            print("❌ No valid route to plot")
             return
             
         routes = response.get("routes", [])
         if not routes:
             print("❌ No routes in response")
             return
-            
-        print(f"✅ Found {len(routes)} route(s)")
-        print("-" * 50)
         
-        for i, route in enumerate(routes):
-            print(f"🛣️  Route {i+1}:")
-            print(f"   Distance: {route['distance']:.1f} meters")
-            print(f"   Duration: {route['duration']:.1f} seconds ({route['duration']/60:.1f} minutes)")
-            print(f"   Geometry type: {type(route['geometry'])}")
-            
-            if isinstance(route['geometry'], str):
-                print(f"   Geometry preview: {route['geometry'][:50]}...")
-            else:
-                print(f"   Geometry: {route['geometry']}")
-            print()
+        # Use the first route
+        route = routes[0]
+        geometry = route["geometry"]
+        
+        print(f"📊 Plotting route with {buffer_distance_meters}m corridor...")
+        print(f"   Distance: {route['distance']:.1f} meters ({route['distance']/1000:.1f}km)")
+        print(f"   Duration: {route['duration']:.1f} seconds ({route['duration']/60:.1f}min)")
+        
+        # Extract coordinates
+        coordinates = self.extract_coordinates(geometry)
+        
+        if not coordinates:
+            print("❌ Couldn't extract coordinates from geometry")
+            return
+        
+        print(f"   Found {len(coordinates)} coordinate points")
+        
+        # Create buffer corridor
+        print(f"   Creating {buffer_distance_meters}m buffer corridor...")
+        buffer_coords = self.create_buffer_corridor(coordinates, buffer_distance_meters)
+        
+        if not buffer_coords:
+            print("❌ Couldn't create buffer corridor")
+            return
+        
+        print(f"   Created buffer with {len(buffer_coords)} boundary points")
+        
+        # Create the map
+        fig = go.Figure()
+        
+        # Add buffer corridor (fill)
+        if buffer_coords:
+            fig.add_trace(go.Scattermapbox(
+                mode="lines",
+                lon=[coord[1] for coord in buffer_coords] + [buffer_coords[0][1]],  # Close the polygon
+                lat=[coord[0] for coord in buffer_coords] + [buffer_coords[0][0]],
+                fill="toself",
+                fillcolor="rgba(255, 0, 0, 0.1)",  # Light red fill
+                line=dict(width=1, color='rgba(255, 0, 0, 0.3)'),
+                name=f"Buffer Corridor ({buffer_distance_meters}m)",
+                hovertemplate=f"Buffer Zone ({buffer_distance_meters}m)<br>Lat: %{{lat}}<br>Lon: %{{lon}}<extra></extra>"
+            ))
+        
+        # Add route line (on top of buffer)
+        fig.add_trace(go.Scattermapbox(
+            mode="lines",
+            lon=[coord[1] for coord in coordinates],
+            lat=[coord[0] for coord in coordinates],
+            line=dict(width=4, color='blue'),
+            name="Route",
+            hovertemplate="Route<br>Lat: %{lat}<br>Lon: %{lon}<extra></extra>"
+        ))
+        
+        # Add start point
+        fig.add_trace(go.Scattermapbox(
+            mode="markers",
+            lon=[coordinates[0][1]],
+            lat=[coordinates[0][0]],
+            marker=dict(size=15, color='green', symbol="circle"),
+            name="Start",
+            hovertemplate="Start Point<br>Lat: %{lat}<br>Lon: %{lon}<extra></extra>"
+        ))
+        
+        # Add end point
+        fig.add_trace(go.Scattermapbox(
+            mode="markers",
+            lon=[coordinates[-1][1]],
+            lat=[coordinates[-1][0]],
+            marker=dict(size=15, color='red', symbol="circle"),
+            name="End",
+            hovertemplate="End Point<br>Lat: %{lat}<br>Lon: %{lon}<extra></extra>"
+        ))
+        
+        # Calculate center and zoom
+        center_lat = sum(coord[0] for coord in coordinates) / len(coordinates)
+        center_lon = sum(coord[1] for coord in coordinates) / len(coordinates)
+        
+        # Update layout
+        fig.update_layout(
+            mapbox=dict(
+                style="open-street-map",
+                center=dict(lat=center_lat, lon=center_lon),
+                zoom=10
+            ),
+            title=f"{title}<br>Distance: {route['distance']/1000:.2f}km, Duration: {route['duration']/60:.1f}min, Buffer: {buffer_distance_meters}m",
+            height=700,
+            showlegend=True
+        )
+        
+        # Show the plot
+        fig.show()
+        
+        return coordinates, buffer_coords
 
 
 def main():
-    # 🔑 Replace with your actual Mapbox token
+    # Your Mapbox token
     MAPBOX_TOKEN = "pk.eyJ1IjoiYWhuYWZ1bCIsImEiOiJjbWI4bnMycDAwbWl1MnJwdDI4YjVobGEyIn0.xE6vOmQFwMHQsH9t0IUsMA"
     
+    # Initialize visualizer
+    viz = RouteCorridorVisualizer(MAPBOX_TOKEN)
     
-    # Initialize client
-    client = MapboxDirections(MAPBOX_TOKEN)
-    
-    # Example coordinates (matching Mapbox docs examples - SF area)
-    coordinates = [
-        (-122.42, 37.78),  # San Francisco (lng, lat)
-        (-77.03, 38.91)    # Washington DC (lng, lat) - from docs example
-    ]
-    
-    print("🗺️  Testing Mapbox Directions API")
+    print("🗺️  Route Corridor Visualization")
     print("=" * 50)
     
-    # Test 1: Basic request (minimal parameters)
-    print("📍 Test 1: Basic Request (Minimal Parameters)")
-    response1 = client.get_directions(
-        coordinates=coordinates
-    )
-    client.print_route_info(response1)
+    # Example coordinates - change these to test your area
+    coordinates = [
+        # (-122.42, 37.78),  # San Francisco  
+        # (-122.27, 37.80)   # Oakland
+        (-113.525540, 53.519250),
+        (-113.606566, 53.430753)
+    ]
     
-    # Test 2: GeoJSON format with full overview
-    print("📍 Test 2: GeoJSON Format") 
-    response2 = client.get_directions(
-        coordinates=coordinates,
-        geometries="geojson",
-        overview="full" 
-    )
-    client.print_route_info(response2)
+    print(f"📍 Getting route from {coordinates[0]} to {coordinates[1]}")
     
-    # Test 3: With alternatives
-    print("📍 Test 3: With Alternative Routes")
-    response3 = client.get_directions(
-        coordinates=coordinates,
-        alternatives=True
-    )
-    client.print_route_info(response3)
+    # Get route
+    response = viz.get_directions(coordinates=coordinates)
     
-    # Test 4: Try simpler driving profile
-    print("📍 Test 4: Simple Driving Profile")
-    response4 = client.get_directions(
-        coordinates=coordinates,
-        profile="mapbox/driving"
-    )
-    client.print_route_info(response4)
-    
-    # Show raw geometry examples
-    if response1 and response1.get("routes"):
-        print("🔍 Raw Geometry Examples:")
-        print("-" * 30)
-        print("Polyline:", response1["routes"][0]["geometry"][:100] + "...")
+    if response:
+        # Test different buffer sizes
+        buffer_sizes = [1000, 2000, 3000]  # 1km, 2km, 3km
         
-    if response2 and response2.get("routes"):
-        geometry = response2["routes"][0]["geometry"]
-        if isinstance(geometry, str):
-            print("GeoJSON:", geometry[:100] + "...")
-        else:
-            print("GeoJSON coords preview:", str(geometry.get("coordinates", [])[:3]) + "...")
+        for buffer_size in buffer_sizes:
+            print(f"\n🛣️  Creating {buffer_size}m corridor...")
+            route_coords, buffer_coords = viz.plot_route_with_corridor(
+                response, 
+                buffer_distance_meters=buffer_size,
+                title=f"Route with {buffer_size}m Buffer Corridor"
+            )
+    else:
+        print("❌ Failed to get route")
 
 
 if __name__ == "__main__":
