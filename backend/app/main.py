@@ -1,175 +1,319 @@
-from dotenv import load_dotenv
-load_dotenv()
-import os
-from supabase import create_client, Client
-from datetime import datetime, timedelta
-from typing import List, Dict, Any
+#!/usr/bin/env python3
+"""
+Ride Sharing Matching System - Main Demo
 
+This demonstrates the modular ride matching system with separated time-based 
+and proximity-based matching algorithms.
+"""
 
+from ride_matcher import RideMatcher
+from time_matcher import TimeBasedMatcher
+from proximity_matcher import ProximityBasedMatcher
+from tests import run_all_tests, get_all_requests_and_offers, create_test_data
 
-url: str = os.environ.get("SUPABASE_URL")
-key: str = os.environ.get("SUPABASE_KEY")
-supabase: Client = create_client(url, key)
-
-# Get all data from a table
-# try:
-#     response = supabase.table('Ride_Offer').select('*').execute()
-    
-#     if response.data:
-#         print(f"Found {len(response.data)} records")
-#         for record in response.data:
-#             print(record)
-#     else:
-#         print("No data found")
-        
-# except Exception as e:
-#     print(f"Error: {e}")
-
-# try:
-#     response = supabase.table('Ride_Request').select('*').execute()
-    
-#     if response.data:
-#         print(f"Found {len(response.data)} records")
-#         for record in response.data:
-#             print(record)
-#     else:
-#         print("No data found")
-        
-# except Exception as e:
-#     print(f"Error: {e}")
-
-
-def find_matching_drivers(commuter_departure_time: datetime, time_window_minutes: int = 45) -> List[Dict[Any, Any]]:
+def demo_basic_usage():
     """
-    Find drivers whose departure time is within the specified time window of the commuter's departure time.
-    
-    Args:
-        commuter_departure_time: The commuter's desired departure time
-        time_window_minutes: Time window in minutes (default: 45)
-    
-    Returns:
-        List of matching drivers
+    Demonstrate basic usage of the matching system.
     """
+    print("🚗 Ride Matching System Demo")
+    print("=" * 50)
     
-    # Calculate time range
-    start_time = commuter_departure_time - timedelta(minutes=time_window_minutes)
-    end_time = commuter_departure_time + timedelta(minutes=time_window_minutes)
+    # Get available data
+    requests, offers = get_all_requests_and_offers()
     
-    # Convert to ISO format for Supabase
-    start_time_iso = start_time.isoformat()
-    end_time_iso = end_time.isoformat()
+    if not requests:
+        print("\n❌ No ride requests found in database")
+        print("💡 Run create_test_data() to add sample data")
+        return
+    
+    # Initialize the unified matcher
+    matcher = RideMatcher(default_time_window_minutes=45)
+    
+    # Use the first request for demo
+    test_request = requests[0]
+    print(f"\n📍 Demo Request:")
+    print(f"   ID: {test_request['id']}")
+    print(f"   Route: {test_request['starting_location']} → {test_request['destination']}")
+    print(f"   Departure: {test_request['departure_datetime']}")
+    print(f"   Seats needed: {test_request['seats_needed']}")
+    
+    # Find best matches using proximity-based algorithm
+    print(f"\n🎯 Finding best matches...")
+    best_matches = matcher.get_best_matches(
+        test_request, 
+        max_results=5, 
+        prefer_proximity=True
+    )
+    
+    if best_matches:
+        print(f"\n✅ Found {len(best_matches)} matching offers:")
+        for i, match in enumerate(best_matches, 1):
+            print(f"\n   {i}. Offer ID: {match['id']}")
+            print(f"      Route: {match.get('starting_location', 'N/A')} → {match.get('destination', 'N/A')}")
+            print(f"      Departure: {match['departure_datetime']}")
+            print(f"      Available seats: {match['seats_available']}")
+            print(f"      Time difference: {match.get('time_difference_minutes', 'N/A')} minutes")
+            print(f"      Match score: {match.get('match_score', 'N/A'):.1f}")
+            
+            # Show proximity info if available
+            if 'pickup_proximity_km' in match:
+                print(f"      Pickup proximity: {match['pickup_proximity_km']}km")
+                print(f"      Destination proximity: {match['destination_proximity_km']}km")
+                print(f"      Max detour allowed: {match['max_detour_km']}km")
+    else:
+        print(f"\n❌ No matching offers found")
+
+def demo_algorithm_comparison():
+    """
+    Demonstrate comparison between time-based and proximity-based algorithms.
+    """
+    print(f"\n🆚 Algorithm Comparison Demo")
+    print("=" * 50)
+    
+    requests, _ = get_all_requests_and_offers()
+    
+    if not requests:
+        print("❌ No requests available for comparison")
+        return
+    
+    matcher = RideMatcher()
+    test_request = requests[0]
+    
+    # Compare algorithms
+    comparison = matcher.compare_algorithms(test_request)
+    
+    if comparison:
+        print(f"\n📊 Comparison Summary:")
+        print(f"   Time-based matches: {comparison['time_count']}")
+        print(f"   Proximity-based matches: {comparison['proximity_count']}")
+        
+        # Analyze the difference
+        if comparison['proximity_count'] < comparison['time_count']:
+            print(f"   📍 Proximity filtering eliminated {comparison['time_count'] - comparison['proximity_count']} offers that were too far away")
+        elif comparison['proximity_count'] == comparison['time_count']:
+            print(f"   ✅ All time-based matches were within proximity range")
+        else:
+            print(f"   ⚠️ Unexpected: proximity found more matches than time-based")
+
+def demo_individual_matchers():
+    """
+    Demonstrate using individual matching algorithms directly.
+    """
+    print(f"\n🔧 Individual Matcher Demo")
+    print("=" * 50)
+    
+    requests, _ = get_all_requests_and_offers()
+    
+    if not requests:
+        print("❌ No requests available")
+        return
+    
+    test_request = requests[0]
+    
+    # Use time-based matcher directly
+    print(f"\n🕐 Time-Based Matcher:")
+    time_matcher = TimeBasedMatcher(default_time_window_minutes=60)  # Wider time window
+    time_matches = time_matcher.find_matching_offers_for_request(test_request)
+    print(f"   Found {len(time_matches)} time-based matches")
+    
+    # Use proximity-based matcher directly
+    print(f"\n🎯 Proximity-Based Matcher:")
+    proximity_matcher = ProximityBasedMatcher(default_time_window_minutes=60)
+    proximity_matches = proximity_matcher.find_matching_offers_with_proximity(test_request)
+    print(f"   Found {len(proximity_matches)} proximity-based matches")
+
+def demo_advanced_features():
+    """
+    Demonstrate advanced features like fallback and performance analysis.
+    """
+    print(f"\n🚀 Advanced Features Demo")
+    print("=" * 50)
+    
+    requests, _ = get_all_requests_and_offers()
+    
+    if not requests:
+        print("❌ No requests available")
+        return
+    
+    matcher = RideMatcher()
+    test_request = requests[0]
+    
+    # Smart fallback demo
+    print(f"\n🛡️ Smart Fallback Demo:")
+    fallback_matches = matcher.get_matches_with_fallback(
+        test_request,
+        time_window_minutes=30,  # Start narrow
+        expand_time_window_on_no_matches=True
+    )
+    print(f"   Smart fallback found {len(fallback_matches)} matches")
+    
+    # Performance analysis demo
+    print(f"\n⏱️ Performance Analysis Demo:")
+    stats = matcher.get_algorithm_performance_stats(test_request)
+    print(f"   Performance analysis completed!")
+    
+    # Batch processing demo (if multiple requests available)
+    if len(requests) > 1:
+        print(f"\n🚀 Batch Processing Demo:")
+        request_ids = [req['id'] for req in requests[:3]]  # First 3 requests
+        batch_results = matcher.find_matches_for_multiple_requests(request_ids)
+        print(f"   Processed {len(batch_results)} requests in batch")
+
+def interactive_demo():
+    """
+    Interactive demo allowing user to choose options.
+    """
+    print(f"\n🎮 Interactive Demo")
+    print("=" * 50)
+    
+    while True:
+        print(f"\nChoose an option:")
+        print("1. Basic usage demo")
+        print("2. Algorithm comparison")
+        print("3. Individual matchers demo")
+        print("4. Advanced features demo")
+        print("5. Run all tests")
+        print("6. View database data")
+        print("7. Create test data")
+        print("8. Help & documentation")
+        print("0. Exit")
+        
+        try:
+            choice = input("\nEnter your choice (0-8): ").strip()
+            
+            if choice == "0":
+                print("👋 Goodbye!")
+                break
+            elif choice == "1":
+                demo_basic_usage()
+            elif choice == "2":
+                demo_algorithm_comparison()
+            elif choice == "3":
+                demo_individual_matchers()
+            elif choice == "4":
+                demo_advanced_features()
+            elif choice == "5":
+                run_all_tests()
+            elif choice == "6":
+                get_all_requests_and_offers()
+            elif choice == "7":
+                create_test_data()
+            elif choice == "8":
+                show_help()
+            else:
+                print("❌ Invalid choice. Please try again.")
+                
+        except KeyboardInterrupt:
+            print("\n👋 Goodbye!")
+            break
+        except Exception as e:
+            print(f"❌ Error: {e}")
+
+def show_help():
+    """
+    Show help and documentation.
+    """
+    print(f"\n📚 Ride Matching System Help")
+    print("=" * 50)
+    
+    print(f"\n🏗️ System Architecture:")
+    print("   📁 config.py         - Database configuration")
+    print("   📁 utils.py          - Shared utilities")
+    print("   📁 time_matcher.py   - Time-based matching algorithm")
+    print("   📁 proximity_matcher.py - Proximity-based matching algorithm")
+    print("   📁 ride_matcher.py   - Unified interface")
+    print("   📁 tests.py          - Test functions")
+    print("   📁 main.py           - This demo file")
+    
+    print(f"\n🎯 Matching Algorithms:")
+    print("   🕐 Time-based: Matches rides by departure time window and seat availability")
+    print("   🎯 Proximity-based: Advanced geographic matching using driver detour preferences")
+    
+    print(f"\n💡 Quick Usage:")
+    print("   from ride_matcher import RideMatcher")
+    print("   matcher = RideMatcher()")
+    print("   matches = matcher.get_best_matches(ride_request)")
+    
+    print(f"\n🔧 Requirements:")
+    print("   - .env file with SUPABASE_URL and SUPABASE_KEY")
+    print("   - Supabase database with Ride_Request and Ride_Offer tables")
+    print("   - calculate_distance RPC function in Supabase")
+    
+    print(f"\n🆘 Troubleshooting:")
+    print("   - If no matches found: Check if you have test data (option 7)")
+    print("   - If distance errors: Verify calculate_distance RPC function exists")
+    print("   - If database errors: Check your .env configuration")
+
+def quick_demo():
+    """
+    Quick demonstration without user interaction.
+    """
+    print("🚗 Quick Ride Matching Demo")
+    print("=" * 40)
     
     try:
-        # Query drivers within the time window
-        response = supabase.table('drivers').select('*').gte('departure_time', start_time_iso).lte('departure_time', end_time_iso).execute()
+        # Check if we have data
+        requests, offers = get_all_requests_and_offers()
         
-        matching_drivers = response.data
-        print(f"Found {len(matching_drivers)} drivers within ±{time_window_minutes} minutes")
+        if not requests or not offers:
+            print("📝 No data found - showing test data creation...")
+            create_test_data()
+            return
         
-        return matching_drivers
+        # Quick algorithm comparison
+        matcher = RideMatcher()
+        test_request = requests[0]
+        
+        print(f"\n🎯 Quick comparison for request {test_request['id']}:")
+        comparison = matcher.compare_algorithms(test_request)
+        
+        if comparison:
+            print(f"✅ Time-based: {comparison['time_count']} matches")
+            print(f"✅ Proximity-based: {comparison['proximity_count']} matches")
+        
+        # Show best matches
+        best_matches = matcher.get_best_matches(test_request, max_results=3)
+        print(f"\n🏆 Top {len(best_matches)} matches:")
+        for i, match in enumerate(best_matches, 1):
+            score = match.get('match_score', 0)
+            time_diff = match.get('time_difference_minutes', 'N/A')
+            print(f"   {i}. Offer {match['id']} - Score: {score:.1f}, Time: {time_diff}min")
         
     except Exception as e:
-        print(f"Error querying drivers: {e}")
-        return []
+        print(f"❌ Quick demo failed: {e}")
+        print("💡 Try running the interactive demo for better error handling")
 
-def find_matching_drivers_by_date_and_time(commuter_departure_datetime: str, time_window_minutes: int = 45) -> List[Dict[Any, Any]]:
-    """
-    Find matching drivers using a datetime string input.
-    
-    Args:
-        commuter_departure_datetime: Departure datetime as string (e.g., "2024-01-15 14:30:00")
-        time_window_minutes: Time window in minutes (default: 45)
-    
-    Returns:
-        List of matching drivers
-    """
-    
-    # Parse the datetime string
-    try:
-        commuter_time = datetime.fromisoformat(commuter_departure_datetime)
-    except ValueError:
-        print(f"Invalid datetime format: {commuter_departure_datetime}")
-        return []
-    
-    return find_matching_drivers(commuter_time, time_window_minutes)
-
-def get_detailed_driver_matches(commuter_departure_time: datetime, time_window_minutes: int = 45) -> List[Dict[Any, Any]]:
-    """
-    Get detailed driver matches with additional filtering and information.
-    
-    Args:
-        commuter_departure_time: The commuter's desired departure time
-        time_window_minutes: Time window in minutes (default: 45)
-    
-    Returns:
-        List of matching drivers with additional details
-    """
-    
-    start_time = commuter_departure_time - timedelta(minutes=time_window_minutes)
-    end_time = commuter_departure_time + timedelta(minutes=time_window_minutes)
-    
-    start_time_iso = start_time.isoformat()
-    end_time_iso = end_time.isoformat()
-    
-    try:
-        # Query with additional filters (e.g., available status, capacity)
-        response = (supabase.table('drivers')
-                   .select('id, user_id, departure_time, origin, destination, available_seats, status, vehicle_info')
-                   .gte('departure_time', start_time_iso)
-                   .lte('departure_time', end_time_iso)
-                   .eq('status', 'available')  # Only available drivers
-                   .gt('available_seats', 0)   # Only drivers with available seats
-                   .execute())
-        
-        matching_drivers = response.data
-        
-        # Add time difference information
-        for driver in matching_drivers:
-            driver_time = datetime.fromisoformat(driver['departure_time'])
-            time_diff = abs((driver_time - commuter_departure_time).total_seconds() / 60)
-            driver['time_difference_minutes'] = round(time_diff, 1)
-        
-        # Sort by time difference (closest matches first)
-        matching_drivers.sort(key=lambda x: x['time_difference_minutes'])
-        
-        print(f"Found {len(matching_drivers)} available drivers within ±{time_window_minutes} minutes")
-        
-        return matching_drivers
-        
-    except Exception as e:
-        print(f"Error querying drivers: {e}")
-        return []
-
-# Example usage and testing
 if __name__ == "__main__":
+    print("🚗 Modular Ride Matching System")
+    print("=" * 60)
+    print("\nThis system uses a modular architecture with separated algorithms:")
+    print("🎯 Proximity-based matching (recommended) - Uses driver detour preferences")
+    print("🕐 Time-based matching (fallback) - Simple time window matching")
+    print("🔄 Smart fallbacks and performance analysis included")
     
-    # Test with a sample commuter departure time
-    commuter_time_str = "2024-01-15 14:30:00"
-    commuter_time = datetime.fromisoformat(commuter_time_str)
-    
-    print(f"Searching for drivers for commuter departure time: {commuter_time}")
-    print(f"Time window: ±45 minutes ({commuter_time - timedelta(minutes=45)} to {commuter_time + timedelta(minutes=45)})")
-    print("-" * 50)
-    
-    # Method 1: Basic matching
-    basic_matches = find_matching_drivers(commuter_time)
-    print(f"\nBasic matches: {len(basic_matches)}")
-    for driver in basic_matches:
-        print(f"Driver ID: {driver.get('id')}, Departure: {driver.get('departure_time')}")
-    
-    print("-" * 50)
-    
-    # Method 2: Using string input
-    string_matches = find_matching_drivers_by_date_and_time(commuter_time_str)
-    print(f"\nString input matches: {len(string_matches)}")
-    
-    print("-" * 50)
-    
-    # Method 3: Detailed matching with additional filters
-    detailed_matches = get_detailed_driver_matches(commuter_time)
-    print(f"\nDetailed matches: {len(detailed_matches)}")
-    for driver in detailed_matches:
-        print(f"Driver ID: {driver.get('id')}, "
-              f"Departure: {driver.get('departure_time')}, "
-              f"Time diff: {driver.get('time_difference_minutes')} min, "
-              f"Available seats: {driver.get('available_seats')}")
+    try:
+        import sys
+        
+        # Check for command line arguments
+        if len(sys.argv) > 1:
+            if sys.argv[1] == "--quick":
+                quick_demo()
+            elif sys.argv[1] == "--test":
+                run_all_tests()
+            elif sys.argv[1] == "--help":
+                show_help()
+            else:
+                print(f"Unknown argument: {sys.argv[1]}")
+                print("Available options: --quick, --test, --help")
+        else:
+            # Run interactive demo by default
+            interactive_demo()
+            
+    except Exception as e:
+        print(f"❌ Demo failed: {e}")
+        print("\n🔧 Quick start checklist:")
+        print("1. ✅ Create .env file with SUPABASE_URL and SUPABASE_KEY")
+        print("2. ✅ Ensure Supabase database has Ride_Request and Ride_Offer tables")
+        print("3. ✅ Add calculate_distance RPC function to Supabase")
+        print("4. ✅ Run option 7 to create test data if needed")
+        print("\n💡 For detailed setup, see README.md")
