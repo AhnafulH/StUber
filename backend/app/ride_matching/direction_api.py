@@ -3,21 +3,32 @@ import json
 import plotly.graph_objects as go
 import pandas as pd
 import numpy as np
-from shapely.geometry import LineString, Point
-from shapely.ops import transform
-from pyproj import Transformer
+from supabase import create_client, Client
 from typing import Dict, List, Tuple, Optional
+from dotenv import load_dotenv
+import os
+load_dotenv()
 
 class RouteCorridorVisualizer:
-    def __init__(self, access_token: str):
+    def __init__(self, access_token: str, supabase_url: str = None, supabase_key: str = None):
         """
         Initialize Mapbox Directions API client with corridor visualization
         
         Args:
             access_token: Your Mapbox API access token
+            supabase_url: Your Supabase project URL (optional, for PostGIS)
+            supabase_key: Your Supabase anon key (optional, for PostGIS)
         """
         self.access_token = access_token
         self.base_url = "https://api.mapbox.com/directions/v5"
+        
+        # Initialize Supabase client if credentials provided
+        self.use_postgis = supabase_url and supabase_key
+        if self.use_postgis:
+            self.supabase: Client = create_client(supabase_url, supabase_key)
+            print("✅ PostGIS mode enabled (using Supabase)")
+        else:
+            print("⚠️  Shapely mode enabled (install 'supabase' for PostGIS)")
     
     def get_directions(
         self,
@@ -77,34 +88,102 @@ class RouteCorridorVisualizer:
             print(f"Unexpected geometry type: {type(route_geometry)}")
             return []
     
-    def create_buffer_corridor(
+    def create_buffer_corridor_postgis(
         self, 
-        coordinates: List[Tuple[float, float]], 
+        route_geometry: Dict,
         buffer_distance_meters: float = 2000
-    ) -> List[Tuple[float, float]]:
+    ) -> Tuple[List[Tuple[float, float]], Dict]:
         """
-        Create a buffer corridor around the route
+        Create a buffer corridor using PostGIS
         
         Args:
-            coordinates: List of (lat, lng) tuples
+            route_geometry: GeoJSON geometry from Mapbox
             buffer_distance_meters: Buffer distance in meters
             
         Returns:
-            List of (lat, lng) tuples forming the buffer polygon
+            Tuple of (buffer_coordinates, corridor_info)
         """
         
-        if len(coordinates) < 2:
-            return []
+        if not self.use_postgis:
+            print("❌ PostGIS not available - use Shapely fallback")
+            return [], {}
         
         try:
+            print(f"🔧 Creating {buffer_distance_meters}m corridor with PostGIS...")
+            
+            # Call the PostgreSQL function
+            result = self.supabase.rpc(
+                'create_route_corridor',
+                {
+                    'route_geojson': route_geometry,
+                    'buffer_distance_meters': int(buffer_distance_meters)
+                }
+            ).execute()
+            
+            if result.data and len(result.data) > 0:
+                corridor_data = result.data[0]
+                corridor_info = corridor_data['corridor_info']
+                
+                print(f"✅ PostGIS corridor created!")
+                print(f"   Buffer distance: {corridor_info['buffer_distance_km']:.1f} km")
+                print(f"   Corridor area: {corridor_info['corridor_area_km2']:.2f} km²")
+                
+                # Parse the corridor GeoJSON
+                corridor_geojson = json.loads(corridor_data['corridor_geojson'])
+                
+                if corridor_geojson['type'] == 'Polygon':
+                    # Extract coordinates and convert to (lat, lng) format
+                    coords = corridor_geojson['coordinates'][0]  # Exterior ring
+                    buffer_coords = [(coord[1], coord[0]) for coord in coords]  # Convert lng,lat to lat,lng
+                    
+                    return buffer_coords, corridor_info
+                else:
+                    print(f"❌ Unexpected corridor geometry type: {corridor_geojson['type']}")
+                    return [], {}
+            else:
+                print("❌ No data returned from PostGIS function")
+                return [], {}
+                
+        except Exception as e:
+            print(f"❌ PostGIS error: {e}")
+            print("🔄 Falling back to Shapely method...")
+            return self.create_buffer_corridor_shapely(route_geometry, buffer_distance_meters)
+    
+    def create_buffer_corridor_shapely(
+        self, 
+        route_geometry: Dict,
+        buffer_distance_meters: float = 2000
+    ) -> Tuple[List[Tuple[float, float]], Dict]:
+        """
+        Create a buffer corridor using Shapely (fallback method)
+        
+        Args:
+            route_geometry: GeoJSON geometry from Mapbox
+            buffer_distance_meters: Buffer distance in meters
+            
+        Returns:
+            Tuple of (buffer_coordinates, corridor_info)
+        """
+        
+        # Extract route coordinates
+        coordinates = self.extract_coordinates(route_geometry)
+        
+        if len(coordinates) < 2:
+            return [], {}
+        
+        try:
+            # Import here to make it optional
+            from shapely.geometry import LineString
+            from shapely.ops import transform
+            from pyproj import Transformer
+            
             # Convert to lng, lat for Shapely (Shapely expects x, y format)
             shapely_coords = [(lng, lat) for lat, lng in coordinates]
             
             # Create LineString
             line = LineString(shapely_coords)
             
-            # Create transformer for meters-based projection (approximate)
-            # Using Web Mercator for simplicity
+            # Create transformer for meters-based projection
             transformer_to_meters = Transformer.from_crs("EPSG:4326", "EPSG:3857", always_xy=True)
             transformer_to_degrees = Transformer.from_crs("EPSG:3857", "EPSG:4326", always_xy=True)
             
@@ -121,47 +200,48 @@ class RouteCorridorVisualizer:
             if hasattr(buffer_degrees, 'exterior'):
                 buffer_coords = list(buffer_degrees.exterior.coords)
                 # Convert back to (lat, lng) format
-                return [(lat, lng) for lng, lat in buffer_coords]
+                buffer_coordinates = [(lat, lng) for lng, lat in buffer_coords]
+                
+                # Create corridor info
+                corridor_info = {
+                    'buffer_distance_meters': buffer_distance_meters,
+                    'buffer_distance_km': buffer_distance_meters / 1000.0,
+                    'corridor_area_km2': buffer_degrees.area / 1000000.0,  # Approximate
+                    'corridor_perimeter_km': buffer_degrees.length / 1000.0  # Approximate
+                }
+                
+                return buffer_coordinates, corridor_info
             else:
                 print("Buffer creation failed - no exterior boundary")
-                return []
+                return [], {}
                 
+        except ImportError:
+            print("❌ Shapely/PyProj not installed. Install with: pip install shapely pyproj")
+            return [], {}
         except Exception as e:
-            print(f"Error creating buffer: {e}")
-            # Fallback: simple circular buffer around each point
-            return self.simple_buffer(coordinates, buffer_distance_meters)
+            print(f"Error creating Shapely buffer: {e}")
+            return [], {}
     
-    def simple_buffer(
+    def create_buffer_corridor(
         self, 
-        coordinates: List[Tuple[float, float]], 
-        buffer_distance_meters: float
-    ) -> List[Tuple[float, float]]:
+        route_geometry: Dict,
+        buffer_distance_meters: float = 2000
+    ) -> Tuple[List[Tuple[float, float]], Dict]:
         """
-        Simple fallback buffer using circles around route points
+        Create a buffer corridor using best available method
         
         Args:
-            coordinates: List of (lat, lng) tuples
+            route_geometry: GeoJSON geometry from Mapbox (not coordinates!)
             buffer_distance_meters: Buffer distance in meters
             
         Returns:
-            List of (lat, lng) tuples approximating buffer
+            Tuple of (buffer_coordinates, corridor_info)
         """
         
-        # Approximate degrees per meter (rough conversion)
-        meters_per_degree = 111000  # Approximate
-        buffer_degrees = buffer_distance_meters / meters_per_degree
-        
-        buffer_points = []
-        
-        for i, (lat, lng) in enumerate(coordinates[::max(1, len(coordinates)//20)]):
-            # Create points around each coordinate
-            for angle in range(0, 360, 30):  # Every 30 degrees
-                angle_rad = np.radians(angle)
-                offset_lat = lat + buffer_degrees * np.sin(angle_rad)
-                offset_lng = lng + buffer_degrees * np.cos(angle_rad)
-                buffer_points.append((offset_lat, offset_lng))
-        
-        return buffer_points
+        if self.use_postgis:
+            return self.create_buffer_corridor_postgis(route_geometry, buffer_distance_meters)
+        else:
+            return self.create_buffer_corridor_shapely(route_geometry, buffer_distance_meters)
     
     def plot_route_with_corridor(
         self, 
@@ -195,7 +275,7 @@ class RouteCorridorVisualizer:
         print(f"   Distance: {route['distance']:.1f} meters ({route['distance']/1000:.1f}km)")
         print(f"   Duration: {route['duration']:.1f} seconds ({route['duration']/60:.1f}min)")
         
-        # Extract coordinates
+        # Extract route coordinates for visualization
         coordinates = self.extract_coordinates(geometry)
         
         if not coordinates:
@@ -204,9 +284,8 @@ class RouteCorridorVisualizer:
         
         print(f"   Found {len(coordinates)} coordinate points")
         
-        # Create buffer corridor
-        print(f"   Creating {buffer_distance_meters}m buffer corridor...")
-        buffer_coords = self.create_buffer_corridor(coordinates, buffer_distance_meters)
+        # Create buffer corridor - pass the geometry object, not coordinates!
+        buffer_coords, corridor_info = self.create_buffer_corridor(geometry, buffer_distance_meters)
         
         if not buffer_coords:
             print("❌ Couldn't create buffer corridor")
@@ -264,6 +343,15 @@ class RouteCorridorVisualizer:
         center_lat = sum(coord[0] for coord in coordinates) / len(coordinates)
         center_lon = sum(coord[1] for coord in coordinates) / len(coordinates)
         
+        # Create title with corridor info
+        method = "PostGIS" if self.use_postgis else "Shapely"
+        title_text = f"{title} ({method})<br>Distance: {route['distance']/1000:.2f}km, Duration: {route['duration']/60:.1f}min"
+        
+        if corridor_info:
+            title_text += f", Buffer: {corridor_info.get('buffer_distance_km', buffer_distance_meters/1000):.1f}km"
+            if 'corridor_area_km2' in corridor_info:
+                title_text += f", Area: {corridor_info['corridor_area_km2']:.1f}km²"
+        
         # Update layout
         fig.update_layout(
             mapbox=dict(
@@ -271,7 +359,7 @@ class RouteCorridorVisualizer:
                 center=dict(lat=center_lat, lon=center_lon),
                 zoom=10
             ),
-            title=f"{title}<br>Distance: {route['distance']/1000:.2f}km, Duration: {route['duration']/60:.1f}min, Buffer: {buffer_distance_meters}m",
+            title=title_text,
             height=700,
             showlegend=True
         )
@@ -283,20 +371,26 @@ class RouteCorridorVisualizer:
 
 
 def main():
-    # Your Mapbox token
+    # Configuration
     MAPBOX_TOKEN = "pk.eyJ1IjoiYWhuYWZ1bCIsImEiOiJjbWI4bnMycDAwbWl1MnJwdDI4YjVobGEyIn0.xE6vOmQFwMHQsH9t0IUsMA"
     
-    # Initialize visualizer
-    viz = RouteCorridorVisualizer(MAPBOX_TOKEN)
+    # Supabase credentials (optional - if not provided, will use Shapely)
+    SUPABASE_URL = os.environ.get("SUPABASE_URL") # Replace with your URL
+    SUPABASE_KEY = os.environ.get("SUPABASE_KEY") # Replace with your key
+    
+    # Initialize visualizer with PostGIS support
+    viz = RouteCorridorVisualizer(
+        access_token=MAPBOX_TOKEN,
+        supabase_url=SUPABASE_URL,
+        supabase_key=SUPABASE_KEY
+    )
     
     print("🗺️  Route Corridor Visualization")
     print("=" * 50)
     
-    # Example coordinates - change these to test your area
+    # Your coordinates
     coordinates = [
-        # (-122.42, 37.78),  # San Francisco  
-        # (-122.27, 37.80)   # Oakland
-        (-113.525540, 53.519250),
+        (-113.525540, 53.519250),  # Edmonton coordinates
         (-113.606566, 53.430753)
     ]
     
