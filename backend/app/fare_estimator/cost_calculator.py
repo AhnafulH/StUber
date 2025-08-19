@@ -163,13 +163,4 @@ def convert_fmt(coords: list) -> list:
     return fmt_coords
 
 if __name__ == "__main__":
-   coords = convert_fmt([
-        '53.43914566079182, -113.61880757370292',
-        '53.462328050963656, -113.5678950301022', # A
-        '53.47578144319133, -113.59709132268893', # B
-        '53.474919787885014, -113.56411479387198', # C
-        '53.51664209748684, -113.52566898659877'
-   ])
-
-   costs = path_difference_method(coords, (2, 1/6))
-   print("Costs", costs)
+    pass
