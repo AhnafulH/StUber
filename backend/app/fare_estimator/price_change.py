@@ -1,48 +1,25 @@
-from cost_calculator import calculate_costs
-from cost_calculator import convert_fmt
-from cost_calculator import path_difference_method
+from price_calculator import FuelPrice
+from price_calculator import calculate_price
+from price_calculator import convert_fmt
+from price_calculator import get_waypoints
 
 if __name__ == "__main__":
-    coords = [
+    coordinates = [
         '53.43914566079182, -113.61880757370292',
         '53.462328050963656, -113.5678950301022', # A
         '53.47578144319133, -113.59709132268893', # B
         '53.474919787885014, -113.56411479387198', # C
         '53.51664209748684, -113.52566898659877'
     ]
-    coords = convert_fmt(coords)
-    A, B, C = coords[1:4]
-    
-    # First ordering
-    c1 = path_difference_method(coords, (2, 1/6))
-    if c1 is not None:
-        print("Order A, B, C")
-        for c, n in zip(c1, list('ABC')):
-            print(f"{n} pays {c}")
-        print('-'*40)
+    coordinates = convert_fmt(coordinates)
+    A, B, C = coordinates[1:4]
+    A = [float(i) for i in A.split(',')]
+    B = [float(i) for i in B.split(',')]
+    C = [float(i) for i in C.split(',')]
+    driver_waypoints = get_waypoints(coordinates[0], coordinates[-1])
+    fp = FuelPrice(2, 1/6)
 
-    # Second ordering B, A, C
-    coords[1], coords[2] = B, A
-    c2 = path_difference_method(coords, (2, 1/6))
-    if c2 is not None:
-        c2[0], c2[1] = c2[1], c2[0]
-        print("Order B, A, C")
-        for c, n in zip(c2, list('ABC')):
-            print(f"{n} pays {c}")
-        print('-'*40)
-    coords[1], coords[2] = A, B # Reset
+    cost_A = calculate_price(driver_waypoints, A, C, fp)
+    cost_B = calculate_price(driver_waypoints, B, C, fp)
 
-    # Third ordering C, A, B
-    coords[1] = C
-    coords[2] = A
-    coords[3] = B
-    c3 = path_difference_method(coords, (2, 1/6))
-    if c3 is not None:
-        c3[0], c3[1], c3[2] = c3[2], c3[0], c3[1]
-        print("Order C, A, B")
-        for c, n in zip(c3, list('ABC')):
-            print(f"{n} pays {c}")
-        print('-'*40)
-    coords[1] = A
-    coords[2] = B
-    coords[3] = C
+    print(f"Price for A to C is {cost_A}, price for B to C is {cost_B}")
