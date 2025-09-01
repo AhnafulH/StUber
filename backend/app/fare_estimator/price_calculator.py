@@ -2,6 +2,7 @@ import requests
 import math
 from itertools import repeat
 from typing import Optional
+from typing import NamedTuple
 
 token = ""
 
@@ -9,41 +10,10 @@ token = ""
 # Going with the mapbox/driving profile, traffic shouldn't matter for distances
 url = "https://api.mapbox.com/directions-matrix/v1/mapbox/driving/"
 
-def calculate_costs(coords: list, config: tuple) -> Optional[list]:
-    """
-    coords: Coordinates('longitude, latitude') for the start point, pickup points, and destination point
-    config: Tuple of gas price ($/L) and fuel efficiency(L/km)
+class FuelPrice(NamedTuple):
+    gas_price: float # ($/L)
+    fuel_efficiency: float # (L/km)
 
-    Returns list of what each hitchhiker pays
-    """
-    if len(coords) <= 2:
-        print("Incorrect usage, there must be intermediate pickup points")
-        return None
-    
-    params = {
-        'access_token': token,
-        'sources': 'all',
-        'annotations': 'distance,duration'
-    }
-
-    coords_str = ';'.join(coords)
-    response = requests.get(url + coords_str, params=params)
-
-    if response.status_code == 200:
-        data = response.json()
-        distance_matrix = data['distances']
-
-        costs = []
-        for i in range(1, len(coords) - 1):
-            c = distance_matrix[i - 1][i] + distance_matrix[i][-1]
-            c /= 1000 # Because want in km
-            costs.append(c * config[0] * config[1])
-        
-        return costs
-    else:
-        print(f"Error: {response.status_code}")
-        print(response.text)
-        return None
 
 def get_waypoints(start, end) -> Optional[list]:
     """
@@ -90,7 +60,7 @@ def get_waypoints(start, end) -> Optional[list]:
 
 
 def get_distance(a, b) -> Optional[float]:
-    if not isinstance(a, (str, tuple)) or not isinstance(b, (str, tuple)):
+    if not isinstance(a, (str, tuple, list)) or not isinstance(b, (str, tuple, list)):
         raise TypeError("Invalid type, expected tuple or string")
     
     if type(a) is str:
@@ -124,33 +94,34 @@ def get_distance(a, b) -> Optional[float]:
     return distance_matrix[0][1] # Distance from a to b
 
 
-def path_difference_method(coords: list, config: tuple) -> Optional[list]:
-    if len(coords) <= 2:
-        raise Exception("Insufficient number of coordinates supplied")
-    
-    split_coords = [c.split(',') for c in coords]
-    crds = [[float(c[0]), float(c[1])] for c in split_coords] # Proper type for taking euclidean norm
 
-    waypoints = get_waypoints(coords[0], coords[-1])
 
-    if waypoints is None:
-        raise Exception("No waypoints in route")
-    
-    costs = []
-    for j in range(1, len(crds) - 1):
-        distances = list(map(math.dist, waypoints, repeat(crds[j])))
-        detour_index = min(range(len(distances)), key=lambda i: distances[i])
-        detour_coord = waypoints[detour_index]
-        detour_dist = get_distance(tuple(crds[j]), tuple(detour_coord)) # 'l' in documentation
-        leftover_dist = get_distance(tuple(detour_coord), coords[len(coords) - 1]) # 's' in documentation
-        if detour_dist is None or leftover_dist is None:
-            raise Exception("Error with getting distances")
-        cost = ((2 * detour_dist + leftover_dist) / 1000) * config[0] * config[1]
-        costs.append(cost) 
-        print(f"Detour for pickup point {crds[j]} is {detour_coord}")
+def calculate_price(driver_waypoints: list, source, destination, fuel_price: FuelPrice) -> Optional[float]:
+    """"
+    Calculate the price a commuter has to pay given a driver's route
 
-    return costs
+    Args:
+        driver_waypoints: List of [Long, Lat] or (Long, Lat) denoting waypoints
+        source: Pickup point for the commuter [Long, Lat] or (Long, Lat)
+        destination: The commuter's destination [Long, Lat] or (Long, Lat)
+        fuel_price: Gas price and fuel efficiency
 
+    Returns:
+        The price the commuter has to pay
+    """
+
+    # Figure out from where to take the detour in the path
+    distances = list(map(math.dist, driver_waypoints, repeat(source)))
+    detour_index = min(range(len(distances)), key=lambda i: distances[i])
+    detour_coordinate = driver_waypoints[detour_index]
+    try:
+        detour_distance = get_distance(detour_coordinate, source)
+        destination_distance = get_distance(source, destination)
+    except requests.exceptions.RequestException:
+        return None
+
+    total_distance = (detour_distance + destination_distance) / 1000
+    return total_distance * fuel_price.gas_price * fuel_price.fuel_efficiency
 
 def convert_fmt(coords: list) -> list:
     """

@@ -2,13 +2,16 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 from datetime import datetime
 from typing import Optional
+from dotenv import load_dotenv
 import os
 from supabase import create_client, Client
 
+load_dotenv()
+
 # Initialize Supabase client
-SUPABASE_URL = os.environ.get("SUPABASE_URL")
-SUPABASE_KEY = os.environ.get("SUPABASE_KEY")
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+SUPABASE_URL: str = os.environ.get("SUPABASE_URL")
+SUPABASE_KEY: str = os.environ.get("SUPABASE_KEY")
+supabase: Client = create_client("https://tzxmancfyapahphvzwcw.supabase.co", "sb_secret_G1w1RKJDm2MJmkdsC-lzyw_Dgw223aJ")
 backend = FastAPI()
 
 
@@ -16,19 +19,18 @@ backend = FastAPI()
 class RideRequestCreate(BaseModel):
     starting_location: str = Field(..., description="Starting location name")
     destination: str = Field(..., description="Destination location name")
-    seats_available: int = Field(..., ge=1, le=8, description="Number of available seats")
+    seats_needed: int = Field(..., ge=1, le=8, description="Number of available seats")
     starting_latitude: float = Field(..., ge=-90, le=90, description="Starting latitude")
     starting_longitude: float = Field(..., ge=-180, le=180, description="Starting longitude")
     destination_latitude: float = Field(..., ge=-90, le=90, description="Destination latitude")
     destination_longitude: float = Field(..., ge=-180, le=180, description="Destination longitude")
     departure_datetime: datetime = Field(..., description="When the ride departs")
-    max_detour_distance: float = Field(..., ge=0, description="Maximum detour distance in km")
 
 
 class RideOfferCreate(BaseModel):
     starting_location: str = Field(..., description="Starting location name")
     destination: str = Field(..., description="Destination location name")
-    seats_needed: int = Field(..., ge=1, le=8, description="Number of seats needed")
+    seats_available: int = Field(..., ge=1, le=8, description="Number of seats needed")
     starting_latitude: float = Field(..., ge=-90, le=90, description="Starting latitude")
     starting_longitude: float = Field(..., ge=-180, le=180, description="Starting longitude")
     destination_latitude: float = Field(..., ge=-90, le=90, description="Destination latitude")
@@ -42,13 +44,12 @@ class RideRequest(BaseModel):
     id: int
     starting_location: str
     destination: str
-    seats_available: int
+    seats_needed: int
     starting_latitude: float
     starting_longitude: float
     destination_latitude: float
     destination_longitude: float
     departure_datetime: datetime
-    max_detour_distance: float
     created_at: Optional[datetime] = None
 
 
@@ -56,7 +57,7 @@ class RideOffer(BaseModel):
     id: int
     starting_location: str
     destination: str
-    seats_needed: int
+    seats_available: int
     starting_latitude: float
     starting_longitude: float
     destination_latitude: float
@@ -73,7 +74,7 @@ def create_ride_request(ride_request: RideRequestCreate):
     """
     try:
         print(f"Received a request for a ride from {ride_request.starting_location} to {ride_request.destination}")
-        print(f"Seats available: {ride_request.seats_available}, Departure: {ride_request.departure_datetime}")
+        print(f"Seats available: {ride_request.seats_needed}, Departure: {ride_request.departure_datetime}")
 
         # Convert Pydantic model to dictionary for Supabase
         ride_data = ride_request.model_dump()
@@ -111,7 +112,7 @@ def create_ride_offer(ride_offer: RideOfferCreate):
     """
     try:
         print(f"Received an offer for a ride from {ride_offer.starting_location} to {ride_offer.destination}")
-        print(f"Seats needed: {ride_offer.seats_needed}, Departure: {ride_offer.departure_datetime}")
+        print(f"Seats needed: {ride_offer.seats_available}, Departure: {ride_offer.departure_datetime}")
 
         # Convert Pydantic model to dictionary for Supabase
         offer_data = ride_offer.model_dump()
