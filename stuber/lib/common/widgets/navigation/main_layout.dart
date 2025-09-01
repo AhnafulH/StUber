@@ -41,6 +41,7 @@ class _MainLayoutState extends State<MainLayout> {
 
   @override
   Widget build(BuildContext context) {
+    print("🔍 main_layout called new");
     return Scaffold(
       body: _screens[_selectedIndex],
       bottomNavigationBar: AppBottomNavigationBar(
