@@ -9,7 +9,7 @@ import json
 from typing import Dict, Optional, Tuple
 from supabase import create_client
 from dotenv import load_dotenv
-from app.ride_matching.integration.direction_aware_corridor_matching import DirectionAwareCorridorMatching
+from direction_aware_corridor_matching import DirectionAwareCorridorMatching
 
 load_dotenv()
 
@@ -168,26 +168,69 @@ class RideMatchingProcessor:
             print(f"Error handling matching results: {e}")
     
     def store_matches(self, driver_ride_id: int, matches: list) -> None:
-        """Store matching results in database (optional)"""
+        """Store matching results in Ride_Match table"""
         try:
-            # Example: Store matches in a separate table
+            print(f"\nStoring {len(matches)} matches in database...")
+            
             for match in matches:
                 match_record = {
-                    'driver_ride_id': driver_ride_id,
-                    'passenger_ride_id': match['passenger_id'],
-                    'match_score': 1.0,  # Could calculate based on distance, direction alignment
-                    'pickup_coords': match['pickup_coords'],
-                    'dropoff_coords': match['dropoff_coords'],
-                    'created_at': 'now()'
+                    'driver_id': driver_ride_id,  # ride_offer id becomes driver_id
+                    'rider_id': match['passenger_id'],  # passenger id becomes rider_id
+                    'price': None,  # Will be set later during negotiation
+                    'driver_accept': None,  # Will be set when driver responds
+                    'rider_accept': None   # Will be set when rider responds
                 }
                 
-                # Uncomment if you have a matches table
-                # result = self.supabase.table('ride_matches').insert(match_record).execute()
-                print(f"  Would store match: Driver {driver_ride_id} <-> Passenger {match['passenger_id']}")
+                # Insert into Ride_Match table
+                result = self.supabase.table('Ride_Match').insert(match_record).execute()
+                
+                if result.data:
+                    match_id = result.data[0]['id']
+                    print(f"  ✅ Stored match ID {match_id}: Driver {driver_ride_id} <-> Rider {match['passenger_id']}")
+                else:
+                    print(f"  ❌ Failed to store match: Driver {driver_ride_id} <-> Rider {match['passenger_id']}")
+            
+            print(f"Successfully stored {len(matches)} ride matches")
                 
         except Exception as e:
             print(f"Error storing matches: {e}")
     
+    def delete_queue_message(self, message_id: int) -> bool:
+        """Delete a specific message from the queue"""
+        try:
+            result = self.supabase.rpc('delete_queue_message', {
+                'queue_name': self.QUEUE_NAME,
+                'message_id': message_id
+            }).execute()
+            
+            if result.data:
+                print(f"✅ Successfully deleted message {message_id} from queue")
+                return True
+            else:
+                print(f"❌ Failed to delete message {message_id} from queue")
+                return False
+                
+        except Exception as e:
+            print(f"Error deleting message {message_id}: {e}")
+            return False
+    
+    def process_and_delete_message(self, message: Dict) -> None:
+        """Process a message and delete it only if processing succeeds"""
+        msg_id = message['msg_id']
+        
+        try:
+            print(f"\nDequeued message ID: {msg_id}")
+            
+            # Process the ride offer
+            self.process_ride_offer(message)
+            
+            # Only delete if processing completed without exceptions
+            self.delete_queue_message(msg_id)
+            
+        except Exception as e:
+            print(f"❌ Processing failed for message {msg_id}: {e}")
+            print("Message left in queue for potential retry")
+
     def run_continuous(self, poll_interval: int = 5) -> None:
         """Run continuous queue processing"""
         print(f"\nStarting continuous queue processing (polling every {poll_interval}s)")
@@ -199,8 +242,7 @@ class RideMatchingProcessor:
                 message = self.dequeue_message()
                 
                 if message:
-                    print(f"\nDequeued message ID: {message['msg_id']}")
-                    self.process_ride_offer(message)
+                    self.process_and_delete_message(message)
                 else:
                     print(".", end="", flush=True)  # Show activity when queue is empty
                 
@@ -219,8 +261,7 @@ class RideMatchingProcessor:
         message = self.dequeue_message()
         
         if message:
-            print(f"Dequeued message ID: {message['msg_id']}")
-            self.process_ride_offer(message)
+            self.process_and_delete_message(message)
         else:
             print("No messages in queue")
 
