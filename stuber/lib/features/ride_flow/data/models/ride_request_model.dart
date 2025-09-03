@@ -1,79 +1,77 @@
-/**
- * Related files: repositories/ride_repository.dart
- * services/ride_service.dart
- * model/ride_request_model.dart
- * 
- * data structure on how ride request should be
- */
-
-class RideRequest {
-  final int? id;
+// Model for creating ride requests (matches your FastAPI RideRequestCreate)
+class RideRequestCreate {
   final String startingLocation;
-  final double? startingLatitude;
-  final double? startingLongitude;
   final String destination;
-  final double? destinationLatitude;
-  final double? destinationLongitude;
   final int seatsNeeded;
+  final double startingLatitude;
+  final double startingLongitude;
+  final double destinationLatitude;
+  final double destinationLongitude;
   final DateTime departureDateTime;
-  // final String status;
-  // final String? notes;
+
+  RideRequestCreate({
+    required this.startingLocation,
+    required this.destination,
+    required this.seatsNeeded,
+    required this.startingLatitude,
+    required this.startingLongitude,
+    required this.destinationLatitude,
+    required this.destinationLongitude,
+    required this.departureDateTime,
+  });
+
+  Map<String, dynamic> toJson() {
+    return {
+      'starting_location': startingLocation,
+      'destination': destination,
+      'seats_needed': seatsNeeded,
+      'starting_latitude': startingLatitude,
+      'starting_longitude': startingLongitude,
+      'destination_latitude': destinationLatitude,
+      'destination_longitude': destinationLongitude,
+      'departure_datetime': departureDateTime.toIso8601String(),
+    };
+  }
+}
+
+// Model for ride request response (matches your FastAPI RideRequest)
+class RideRequestResponse {
+  final int id;
+  final String startingLocation;
+  final String destination;
+  final int seatsNeeded;
+  final double startingLatitude;
+  final double startingLongitude;
+  final double destinationLatitude;
+  final double destinationLongitude;
+  final DateTime departureDateTime;
   final DateTime? createdAt;
 
-  const RideRequest({
-    this.id,
+  RideRequestResponse({
+    required this.id,
     required this.startingLocation,
-    this.startingLatitude,
-    this.startingLongitude,
     required this.destination,
-    this.destinationLatitude,
-    this.destinationLongitude,
     required this.seatsNeeded,
+    required this.startingLatitude,
+    required this.startingLongitude,
+    required this.destinationLatitude,
+    required this.destinationLongitude,
     required this.departureDateTime,
-    // this.status = 'pending',
-    // this.notes,
     this.createdAt,
   });
 
-  // Convert to JSON for Supabase
-  Map<String, dynamic> toJson() {
-    return {
-      if (id != null) 'id': id,
-      'starting_location': startingLocation,
-      'starting_latitude': startingLatitude,
-      'starting_longitude': startingLongitude,
-      'destination': destination,
-      'destination_latitude': destinationLatitude,
-      'destination_longitude': destinationLongitude,
-      'seats_needed': seatsNeeded,
-      'departure_datetime': departureDateTime.toIso8601String(),
-      // 'status': status,
-      // 'notes': notes,
-    };
-  }
-
-  // Create from JSON (from Supabase)
-  factory RideRequest.fromJson(Map<String, dynamic> json) {
-    return RideRequest(
+  factory RideRequestResponse.fromJson(Map<String, dynamic> json) {
+    return RideRequestResponse(
       id: json['id'],
       startingLocation: json['starting_location'],
-      startingLatitude: json['starting_latitude']?.toDouble(),
-      startingLongitude: json['starting_longitude']?.toDouble(),
       destination: json['destination'],
-      destinationLatitude: json['destination_latitude']?.toDouble(),
-      destinationLongitude: json['destination_longitude']?.toDouble(),
       seatsNeeded: json['seats_needed'],
+      startingLatitude: json['starting_latitude'].toDouble(),
+      startingLongitude: json['starting_longitude'].toDouble(),
+      destinationLatitude: json['destination_latitude'].toDouble(),
+      destinationLongitude: json['destination_longitude'].toDouble(),
       departureDateTime: DateTime.parse(json['departure_datetime']),
-      // status: json['status'] ?? 'pending',
-      // notes: json['notes'],
-      createdAt: json['created_at'] != null 
-          ? DateTime.parse(json['created_at']) 
-          : null,
+      createdAt: json['created_at'] != null ? DateTime.parse(json['created_at']) : null,
     );
-  }
-
-  @override
-  String toString() {
-    return 'RideRequest(from: $startingLocation, to: $destination, seats: $seatsNeeded, departure: $departureDateTime)';
   }
 }

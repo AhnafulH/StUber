@@ -4,7 +4,7 @@ import 'package:stuber/features/map/presentation/map_component.dart';
 import 'package:animated_toggle_switch/animated_toggle_switch.dart';
 import 'package:stuber/features/location_search_autocomplete/search_autocomplete.dart';
 import 'package:stuber/features/location_search_autocomplete/location_suggestion_widget.dart';
-import 'package:stuber/features/ride_flow/data/services/ride_service.dart';
+import 'package:stuber/features/ride_flow/data/services/ride_request_service.dart';
 import 'package:stuber/features/ride_flow/data/models/ride_request_model.dart';
 import 'package:stuber/features/ride_flow/data/services/ride_offer_service.dart';
 import 'package:stuber/features/ride_flow/data/models/ride_offer_model.dart';
