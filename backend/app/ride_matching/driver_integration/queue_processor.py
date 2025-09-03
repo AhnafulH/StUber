@@ -47,6 +47,30 @@ class RideMatchingProcessor:
             print(f"Error dequeuing message: {e}")
             return None
     
+    def get_ride_coordinates(self, ride_id: int) -> Optional[Tuple[Tuple[float, float], Tuple[float, float]]]:
+        """
+        Get start/end coordinates for a ride from the database
+        Returns: ((start_lng, start_lat), (end_lng, end_lat)) or None
+        """
+        try:
+            # Query the ride details from your rides table
+            # Assuming you have a table with ride coordinates
+            result = self.supabase.table('Ride_Offer').select(
+                'starting_longitude, starting_latitude, destination_longitude, destination_latitude'
+            ).eq('id', ride_id).execute()
+            
+            if result.data and len(result.data) > 0:
+                ride = result.data[0]
+                start_coords = (ride['starting_longitude'], ride['starting_latitude'])
+                end_coords = (ride['destination_longitude'], ride['destination_latitude'])
+                return start_coords, end_coords
+            else:
+                print(f"No coordinates found for ride ID {ride_id}")
+                return None
+                
+        except Exception as e:
+            print(f"Error getting ride coordinates: {e}")
+            return None
     
     def process_ride_offer(self, message_data: Dict) -> None:
         """Process a driver ride offer and find matching passengers"""
@@ -66,15 +90,13 @@ class RideMatchingProcessor:
                 print(f"Skipping - not a driver offer: {ride_message.get('ride_type')}")
                 return
             
-
-            # Get coordinates from queue message
-            if 'starting_coords' not in ride_message or 'destination_coords' not in ride_message:
-                print("Missing coordinates in queue message")
+            # Get coordinates for this ride
+            coordinates = self.get_ride_coordinates(ride_message['ride_id'])
+            if not coordinates:
+                print("Could not get coordinates for this ride")
                 return
-
-            start_coords = tuple(ride_message['starting_coords'])
-            end_coords = tuple(ride_message['destination_coords'])
-
+            
+            start_coords, end_coords = coordinates
             print(f"Driver route: {start_coords} -> {end_coords}")
             
             # Get route from Mapbox
