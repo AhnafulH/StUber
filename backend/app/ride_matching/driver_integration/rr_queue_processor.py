@@ -90,31 +90,17 @@ class RideMatchingProcessor:
                 print(f"Skipping - not a driver offer: {ride_message.get('ride_type')}")
                 return
             
-            # Get coordinates for this ride
-            coordinates = self.get_ride_coordinates(ride_message['ride_id'])
-            if not coordinates:
-                print("Could not get coordinates for this ride")
-                return
-            
-            start_coords, end_coords = coordinates
-            print(f"Driver route: {start_coords} -> {end_coords}")
-            
             # Get route from Mapbox
             print("Getting route from Mapbox...")
-            route_response = self.matcher.get_route(start_coords, end_coords)
+            route_geometry = self.matcher.get_route_geometry(ride_message['ride_id'])
             
-            if not route_response or route_response.get("code") != "Ok":
-                print(f"Failed to get route from Mapbox: {route_response}")
+            if route_geometry is None:
+                print(f"Failed to get route from Mapbox for {ride_message['ride_id']}")
                 return
-            
-            route = route_response["routes"][0]
-            route_geometry = route["geometry"]
-            
-            print(f"Route: {route['distance']/1000:.1f}km, {route['duration']/60:.1f}min")
             
             # Use driver's preferred detour distance from queue message (convert km to meters)
             buffer_distance_km = ride_message.get('max_detour_distance', 3)  # Default to 3km if not specified
-            buffer_distance = buffer_distance_km * 1000  # Convert kilometers to meters
+            buffer_distance = int(buffer_distance_km * 1000)  # Convert kilometers to meters
             print(f"Using detour distance: {buffer_distance_km}km ({buffer_distance}m)")
             
             # Find matching passengers

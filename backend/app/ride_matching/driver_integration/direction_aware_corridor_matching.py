@@ -25,28 +25,16 @@ class DirectionAwareCorridorMatching:
         self.mapbox_token = mapbox_token
         self.mapbox_base_url = "https://api.mapbox.com/directions/v5"
     
-    def get_route(
-        self, 
-        start_coords: Tuple[float, float], 
-        end_coords: Tuple[float, float]
-    ) -> Dict:
-        """Get route from Mapbox Directions API"""
-        
-        coords_str = f"{start_coords[0]},{start_coords[1]};{end_coords[0]},{end_coords[1]}"
-        url = f"{self.mapbox_base_url}/mapbox/driving-traffic/{coords_str}"
-        
-        params = {
-            "access_token": self.mapbox_token,
-            "geometries": "geojson",
-            "overview": "full"
-        }
-        
-        try:
-            response = requests.get(url, params=params)
-            response.raise_for_status()
-            return response.json()
-        except Exception as e:
-            print(f"❌ Mapbox error: {e}")
+    def get_route_geometry(
+        self,
+        ride_id: int
+    ) -> Optional[Dict]:
+        """Get the route geometry that is stored in the DB"""
+        result = self.supabase.table('Ride_Offer').select('route_geometry').eq('id', ride_id).execute()
+        if result.data:
+            return result.data[0]['route_geometry']
+        else:
+            print(f"No coordinates found for ride {ride_id}")
             return None
     
     def analyze_corridor_with_direction(
