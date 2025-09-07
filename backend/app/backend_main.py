@@ -74,7 +74,7 @@ def create_ride_request(ride_request: RideRequestCreate):
     """
     try:
         print(f"Received a request for a ride from {ride_request.starting_location} to {ride_request.destination}")
-        print(f"Seats available: {ride_request.seats_needed}, Departure: {ride_request.departure_datetime}")
+        print(f"Seats needed: {ride_request.seats_needed}, Departure: {ride_request.departure_datetime}")
 
         # Convert Pydantic model to dictionary for Supabase
         ride_data = ride_request.model_dump()
@@ -112,7 +112,7 @@ def create_ride_offer(ride_offer: RideOfferCreate):
     """
     try:
         print(f"Received an offer for a ride from {ride_offer.starting_location} to {ride_offer.destination}")
-        print(f"Seats needed: {ride_offer.seats_available}, Departure: {ride_offer.departure_datetime}")
+        print(f"Seats available: {ride_offer.seats_available}, Departure: {ride_offer.departure_datetime}")
 
         # Convert Pydantic model to dictionary for Supabase
         offer_data = ride_offer.model_dump()
