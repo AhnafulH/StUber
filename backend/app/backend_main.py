@@ -11,7 +11,7 @@ load_dotenv()
 # Initialize Supabase client
 SUPABASE_URL: str = os.environ.get("SUPABASE_URL")
 SUPABASE_KEY: str = os.environ.get("SUPABASE_KEY")
-supabase: Client = create_client("https://tzxmancfyapahphvzwcw.supabase.co", "sb_secret_G1w1RKJDm2MJmkdsC-lzyw_Dgw223aJ")
+supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 backend = FastAPI()
 
 
