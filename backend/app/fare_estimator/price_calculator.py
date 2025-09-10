@@ -4,7 +4,7 @@ from itertools import repeat
 from typing import Optional
 from typing import NamedTuple
 
-token = ""
+token = "pk.eyJ1IjoibW9ub2NsZS1hbW9uIiwiYSI6ImNtZGY5YzhhMTBiMTgya3B0YzdjZXFya3IifQ.coqwpwT5sFC2V4EDKfIfnA"
 
 # URL https://api.mapbox.com/directions-matrix/v1/{profile}/{coordinates}
 # Going with the mapbox/driving profile, traffic shouldn't matter for distances
