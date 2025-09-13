@@ -1,4 +1,5 @@
 class RideOfferCreate {
+  final String uuid;
   final String startingLocation;
   final String destination;
   final int seatsAvailable;
@@ -10,6 +11,7 @@ class RideOfferCreate {
   final double maxDetourDistance;
 
   RideOfferCreate({
+    required this.uuid,
     required this.startingLocation,
     required this.destination,
     required this.seatsAvailable,
@@ -23,6 +25,7 @@ class RideOfferCreate {
 
   Map<String, dynamic> toJson() {
     return {
+      'uuid': uuid,
       'starting_location': startingLocation,
       'destination': destination,
       'seats_available': seatsAvailable,
