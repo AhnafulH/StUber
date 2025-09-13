@@ -45,3 +45,39 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Android build folders
+android/.gradle/
+android/app/build/
+android/build/
+
+# iOS build folders
+ios/Flutter/App.framework
+ios/Flutter/Flutter.framework
+ios/Flutter/Generated.xcconfig
+ios/Flutter/ephemeral/
+ios/.symlinks/
+ios/build/
+ios/Pods/
+ios/Runner.xcworkspace/
+
+# Output binaries (don't commit apks, bundles, or shared libs)
+*.apk
+*.aab
+*.ipa
+*.so
+*.dylib
+*.dll
+
+# Gradle & other local files
+.gradle/
+local.properties
+*.keystore
+*.jks
+
+# Xcode user data
+*.xcuserstate
+*.xcuserdata/
+
+# Misc IDE stuff
+.vscode/
