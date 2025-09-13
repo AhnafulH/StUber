@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'dart:convert';
 import '../models/ride_offer_model.dart';
 
@@ -27,6 +28,15 @@ class RideOfferService {
   }) async {
     print('🎯 RideOfferService: Creating ride offer...');
 
+    final supabase = Supabase.instance.client;
+    final currentSession = supabase.auth.currentSession;
+
+    if (currentSession == null) {
+      throw Exception("User must be logged in to create Ride Offer");
+    }
+
+    final uuid = currentSession.user.id;
+
     // 1. Input validation (you can uncomment your validation if needed)
     if (startingLatitude == null || startingLongitude == null ||
         destinationLatitude == null || destinationLongitude == null) {
@@ -45,6 +55,7 @@ class RideOfferService {
 
     // 3. Create the API request object
     final rideOfferCreate = RideOfferCreate(
+      uuid: uuid,
       startingLocation: startingLocation.trim(),
       destination: destination.trim(),
       seatsAvailable: seatsAvailable,
