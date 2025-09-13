@@ -9,7 +9,7 @@ android {
     namespace = "com.example.stuber"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
-    compileSdkVersion 35
+    compileSdk = flutter.compileSdkVersion
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
