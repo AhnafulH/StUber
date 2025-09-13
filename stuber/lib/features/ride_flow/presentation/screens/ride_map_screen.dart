@@ -5,12 +5,10 @@ import 'package:animated_toggle_switch/animated_toggle_switch.dart';
 import 'package:stuber/features/location_search_autocomplete/search_autocomplete.dart';
 import 'package:stuber/features/location_search_autocomplete/location_suggestion_widget.dart';
 import 'package:stuber/features/ride_flow/data/services/ride_request_service.dart';
-import 'package:stuber/features/ride_flow/data/models/ride_request_model.dart';
 import 'package:stuber/features/ride_flow/data/services/ride_offer_service.dart';
-import 'package:stuber/features/ride_flow/data/models/ride_offer_model.dart';
 
 class RideShareScreen extends StatefulWidget {
-  const RideShareScreen({Key? key}) : super(key: key);
+  const RideShareScreen({super.key});
 
   @override
   State<RideShareScreen> createState() => _RideShareScreenState();
@@ -20,7 +18,7 @@ class _RideShareScreenState extends State<RideShareScreen> {
   final MapController _mapController = MapController();
   final DraggableScrollableController _bottomSheetController = DraggableScrollableController();
 
-  final RideService _rideService = RideService();
+  final RideRequestService _rideRequestService = RideRequestService();
    final RideOfferService _rideOfferService = RideOfferService();
 
   bool _isRequestingRide = false;
@@ -1396,7 +1394,7 @@ Widget _buildRouteItem({
     try {
       print('🎯 UI: Starting ride request creation...');
 
-      final rideRequest = await _rideService.createRideRequestFromForm(
+      final rideRequest = await _rideRequestService.createRideRequestFromForm(
         startingLocation: _startingLocation,
         destination: _destination,
         seatsNeeded: _requestedSeats,
