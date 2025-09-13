@@ -1,5 +1,7 @@
 // Model for creating ride requests (matches your FastAPI RideRequestCreate)
+
 class RideRequestCreate {
+  final String uuid;
   final String startingLocation;
   final String destination;
   final int seatsNeeded;
@@ -10,6 +12,7 @@ class RideRequestCreate {
   final DateTime departureDateTime;
 
   RideRequestCreate({
+    required this.uuid,
     required this.startingLocation,
     required this.destination,
     required this.seatsNeeded,
@@ -22,6 +25,7 @@ class RideRequestCreate {
 
   Map<String, dynamic> toJson() {
     return {
+      'uuid': uuid,
       'starting_location': startingLocation,
       'destination': destination,
       'seats_needed': seatsNeeded,

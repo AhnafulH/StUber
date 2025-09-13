@@ -3,7 +3,9 @@ import '../models/ride_request_model.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 
-class RideService {
+import 'package:supabase_flutter/supabase_flutter.dart';
+
+class RideRequestService {
   // Replace with your actual FastAPI server URL
   static const String baseUrl = 'http://localhost:8000'; // Update this!
   
@@ -25,6 +27,16 @@ class RideService {
     double? destinationLongitude,
   }) async {
     print('🎯 RideService: Creating ride request...');
+
+    final supabase = Supabase.instance.client;
+    final currentSession = supabase.auth.currentSession;
+
+    if(currentSession == null) {
+      throw Exception('User must be logged in to create a ride request');
+    }
+
+    final uuid = currentSession.user.id;
+    print('UUID for this session: $uuid');
 
     // 1. Basic validation
     _validateInput(
@@ -53,6 +65,7 @@ class RideService {
 
     // 3. Create the API request object
     final rideRequestCreate = RideRequestCreate(
+      uuid: uuid,
       startingLocation: startingLocation.trim(),
       destination: destination.trim(),
       seatsNeeded: seatsNeeded,
@@ -135,6 +148,7 @@ class RideService {
   // if you want to keep using your existing model elsewhere
   RideRequestCreate convertToApiModel(dynamic rideRequestModel) {
     return RideRequestCreate(
+      uuid: rideRequestModel.uuid,
       startingLocation: rideRequestModel.startingLocation,
       destination: rideRequestModel.destination,
       seatsNeeded: rideRequestModel.seatsNeeded,
