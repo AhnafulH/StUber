@@ -7,7 +7,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 class RideRequestService {
   // Replace with your actual FastAPI server URL
-  static const String baseUrl = 'http://localhost:8000'; // Update this!
+  static const String baseUrl = 'http://10.21.71.179:8000'; // Update this!
   
   static const Map<String, String> headers = {
     'Content-Type': 'application/json',

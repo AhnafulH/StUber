@@ -3,7 +3,7 @@ import 'package:stuber/features/ride_display/presentation/ride_model.dart';
 import 'package:stuber/features/ride_display/presentation/ride_card.dart';
 
 class RideList extends StatelessWidget {
-  const RideList({Key? key}) : super(key: key);
+  const RideList({super.key});
 
   @override
   Widget build(BuildContext context) {
