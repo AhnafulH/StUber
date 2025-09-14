@@ -169,25 +169,24 @@ def get_ride_matches(uuid: str = Query(..., description="User UUID to find ride 
     5. Return combined driver names and prices
     """
     try:
-        logging.info(f"🔍 Finding ride matches for UUID: {uuid}")
+        print(f"🔍 Finding ride matches for UUID: {uuid}")
 
         # Step 1: Get all ride request IDs for this user
         ride_requests_result = supabase.table('Ride_Request').select('id').eq('uuid', uuid).execute()
 
         if not ride_requests_result.data:
-            logging.info(f"❌ No ride requests found for UUID: {uuid}")
+            print(f"❌ No ride requests found for UUID: {uuid}")
             return []  # Return empty list if no ride requests found
 
         ride_request_ids = [request['id'] for request in ride_requests_result.data]
-        logging.info(f"📋 Found {len(ride_request_ids)} ride requests: {ride_request_ids}")
+        print(f"📋 Found {len(ride_request_ids)} ride requests: {ride_request_ids}")
 
         # Step 2: Get all matches for these ride requests (driver_id and price)
         # Note: Using 'in_' filter to match multiple IDs
-        ride_matches_result = supabase.table('Ride_Match').select('driver_id, price').in_('id',
+        ride_matches_result = supabase.table('Ride_Match').select('driver_id, price').in_('rider_id',
                                                                                           ride_request_ids).execute()
-
         if not ride_matches_result.data:
-            logging.info(f"❌ No ride matches found for ride requests: {ride_request_ids}")
+            print(f"❌ No ride matches found for ride requests: {ride_request_ids}")
             return []  # Return empty list if no matches found
 
         # Extract driver IDs and create a mapping of driver_id to price
@@ -199,14 +198,14 @@ def get_ride_matches(uuid: str = Query(..., description="User UUID to find ride 
             driver_ids.append(driver_id)
             driver_prices[driver_id] = price
 
-        logging.info(f"🚗 Found {len(driver_ids)} driver matches: {driver_ids}")
-        logging.info(f"💰 Driver prices: {driver_prices}")
+        print(f"🚗 Found {len(driver_ids)} driver matches: {driver_ids}")
+        print(f"💰 Driver prices: {driver_prices}")
 
         # Step 3: Get driver UUIDs from Ride_Offer table
         ride_offers_result = supabase.table('Ride_Offer').select('id, uuid').in_('id', driver_ids).execute()
 
         if not ride_offers_result.data:
-            logging.info(f"❌ No ride offers found for driver IDs: {driver_ids}")
+            print(f"❌ No ride offers found for driver IDs: {driver_ids}")
             return []
 
         # Create mapping of driver_id to driver_uuid
@@ -218,21 +217,21 @@ def get_ride_matches(uuid: str = Query(..., description="User UUID to find ride 
             driver_uuid_mapping[driver_id] = driver_uuid
             driver_uuids.append(driver_uuid)
 
-        logging.info(f"👥 Driver UUID mapping: {driver_uuid_mapping}")
+        print(f"👥 Driver UUID mapping: {driver_uuid_mapping}")
 
         # Step 4: Get full names from profiles table
-        profiles_result = supabase.table('profiles').select('uuid, full_name').in_('uuid', driver_uuids).execute()
+        profiles_result = supabase.table('profiles').select('id, full_name').in_('id', driver_uuids).execute()
 
         if not profiles_result.data:
-            logging.info(f"❌ No profiles found for driver UUIDs: {driver_uuids}")
+            print(f"❌ No profiles found for driver UUIDs: {driver_uuids}")
             return []
 
         # Create mapping of uuid to full_name
         uuid_name_mapping = {}
         for profile in profiles_result.data:
-            uuid_name_mapping[profile['uuid']] = profile['full_name']
+            uuid_name_mapping[profile['id']] = profile['full_name']
 
-        logging.info(f"📇 UUID to name mapping: {uuid_name_mapping}")
+        print(f"📇 UUID to name mapping: {uuid_name_mapping}")
 
         # Step 5: Combine everything into response
         ride_matches = []
@@ -248,13 +247,13 @@ def get_ride_matches(uuid: str = Query(..., description="User UUID to find ride 
                         price=price
                     )
                     ride_matches.append(ride_match)
-                    logging.info(f"✅ Added match: {driver_name} - ${price}")
+                    print(f"✅ Added match: {driver_name} - ${price}")
                 else:
                     logging.warning(f"⚠️ No profile found for driver UUID: {driver_uuid}")
             else:
                 logging.warning(f"⚠️ No UUID found for driver ID: {driver_id}")
 
-        logging.info(f"🎉 Returning {len(ride_matches)} ride matches")
+        print(f"🎉 Returning {len(ride_matches)} ride matches")
         return ride_matches
 
     except Exception as e:
