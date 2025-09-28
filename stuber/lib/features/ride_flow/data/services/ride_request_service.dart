@@ -7,7 +7,8 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 class RideRequestService {
   // Replace with your actual FastAPI server URL
-  static const String baseUrl = 'http://localhost:8000'; // Update this!
+  // static const String baseUrl = 'http://localhost:8000'; // Update this!
+   static const String baseUrl = 'http://10.21.71.179:8000';
   
   static const Map<String, String> headers = {
     'Content-Type': 'application/json',
@@ -25,6 +26,7 @@ class RideRequestService {
     double? startingLongitude,
     double? destinationLatitude,
     double? destinationLongitude,
+    Map<String, dynamic>? routeGeometry,
   }) async {
     print('🎯 RideService: Creating ride request...');
 
@@ -74,6 +76,8 @@ class RideRequestService {
       destinationLatitude: destinationLatitude,
       destinationLongitude: destinationLongitude,
       departureDateTime: departureDateTime,
+      routeGeometry: routeGeometry,
+      
     );
 
     print('🚗 Sending ride request to API: ${rideRequestCreate.toJson()}');

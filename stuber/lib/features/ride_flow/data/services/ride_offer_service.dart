@@ -6,7 +6,8 @@ import '../models/ride_offer_model.dart';
 
 class RideOfferService {
   // Replace with your actual FastAPI server URL
-  static const String baseUrl = 'http://localhost:8000'; // Update this!
+  // static const String baseUrl = 'http://localhost:8000'; // Update this!
+  static const String baseUrl = 'http://10.21.71.179:8000';
   
   static const Map<String, String> headers = {
     'Content-Type': 'application/json',
@@ -25,6 +26,7 @@ class RideOfferService {
     double? startingLongitude,
     double? destinationLatitude,
     double? destinationLongitude,
+    Map<String, dynamic>? routeGeometry,
   }) async {
     print('🎯 RideOfferService: Creating ride offer...');
 
@@ -65,6 +67,7 @@ class RideOfferService {
       destinationLongitude: destinationLongitude,
       departureDateTime: departureDateTime,
       maxDetourDistance: maxDetourDistance.toDouble(),
+      routeGeometry: routeGeometry,
     );
 
     print('🚗 Sending ride offer to API: ${rideOfferCreate.toJson()}');

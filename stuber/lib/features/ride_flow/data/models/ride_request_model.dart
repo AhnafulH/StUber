@@ -10,6 +10,7 @@ class RideRequestCreate {
   final double destinationLatitude;
   final double destinationLongitude;
   final DateTime departureDateTime;
+  final Map<String, dynamic>? routeGeometry;
 
   RideRequestCreate({
     required this.uuid,
@@ -21,6 +22,7 @@ class RideRequestCreate {
     required this.destinationLatitude,
     required this.destinationLongitude,
     required this.departureDateTime,
+    this.routeGeometry,
   });
 
   Map<String, dynamic> toJson() {
@@ -34,6 +36,7 @@ class RideRequestCreate {
       'destination_latitude': destinationLatitude,
       'destination_longitude': destinationLongitude,
       'departure_datetime': departureDateTime.toIso8601String(),
+      'route_geometry': routeGeometry,
     };
   }
 }

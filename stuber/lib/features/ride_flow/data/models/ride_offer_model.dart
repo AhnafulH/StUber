@@ -9,6 +9,7 @@ class RideOfferCreate {
   final double destinationLongitude;
   final DateTime departureDateTime;
   final double maxDetourDistance;
+  final Map<String, dynamic>? routeGeometry;
 
   RideOfferCreate({
     required this.uuid,
@@ -21,6 +22,7 @@ class RideOfferCreate {
     required this.destinationLongitude,
     required this.departureDateTime,
     required this.maxDetourDistance,
+    this.routeGeometry,
   });
 
   Map<String, dynamic> toJson() {
@@ -35,6 +37,7 @@ class RideOfferCreate {
       'destination_longitude': destinationLongitude,
       'departure_datetime': departureDateTime.toIso8601String(),
       'max_detour_distance': maxDetourDistance,
+      'route_geometry': routeGeometry,
     };
   }
 }
