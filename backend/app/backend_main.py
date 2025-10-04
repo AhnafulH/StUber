@@ -3,7 +3,7 @@ import logging
 from fastapi import FastAPI, HTTPException, Query
 from pydantic import BaseModel, Field
 from datetime import datetime
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from dotenv import load_dotenv
 import os
 from supabase import create_client, Client
@@ -28,6 +28,7 @@ class RideRequestCreate(BaseModel):
     destination_latitude: float = Field(..., ge=-90, le=90, description="Destination latitude")
     destination_longitude: float = Field(..., ge=-180, le=180, description="Destination longitude")
     departure_datetime: datetime = Field(..., description="When the ride departs")
+    route_geometry: Optional[Dict[str, Any]] = Field(..., description="Route Geometry")
 
 
 class RideOfferCreate(BaseModel):
@@ -41,6 +42,7 @@ class RideOfferCreate(BaseModel):
     destination_longitude: float = Field(..., ge=-180, le=180, description="Destination longitude")
     departure_datetime: datetime = Field(..., description="When the ride is needed")
     max_detour_distance: float = Field(..., ge=0, description="Maximum detour distance in km")
+    route_geometry: Optional[Dict[str, Any]] = Field(..., description="Route Geometry")
 
 
 # Response models (with ID - what gets returned)
