@@ -53,10 +53,12 @@ class PriceProcessor:
             source = (result.data[0]['starting_longitude'], result.data[0]['starting_latitude'])
             destination = (result.data[0]['destination_longitude'], result.data[0]['destination_latitude'])
 
-            price = calculate_price(waypoints, source, destination, FuelPrice(2, 1/6))
+            price, detour_distance, detour_duration = calculate_price(waypoints, source, destination, FuelPrice(2, 1/6))
 
             self.supabase.table('Ride_Match').update({
-                'price': price
+                'price': price,
+                'detour_distance': detour_distance,
+                'detour_duration': detour_duration
             }).eq('id', match_id).execute()
 
         except Exception as e:

@@ -21,9 +21,9 @@ def get_waypoints(start, end) -> Optional[list]:
     """
     if not isinstance(start, (str, tuple)) or not isinstance(start, (str, tuple)):
         raise TypeError("Invalid type, expected tuple or string")
-    
+
     base_url = "https://api.mapbox.com/directions/v5/mapbox"
-    
+
     if type(start) is str:
         if type(end) is str:
             coordinates = start + ';' + end
@@ -34,7 +34,7 @@ def get_waypoints(start, end) -> Optional[list]:
             coordinates = f"{start[0]},{start[1]}" + ';' + end
         else:
             coordinates = f"{start[0]},{start[1]};{end[0]},{end[1]}"
-    
+
     url = f"{base_url}/driving/{coordinates}"
 
     params = {
@@ -50,7 +50,7 @@ def get_waypoints(start, end) -> Optional[list]:
     except requests.exceptions.RequestException as e:
         print(f"Error making request: {e}")
         return None
-    
+
     result = response.json()
 
     route = result['routes'][0] # First route
@@ -59,10 +59,10 @@ def get_waypoints(start, end) -> Optional[list]:
         return route['geometry']['coordinates']
 
 
-def get_distance(a, b) -> Optional[float]:
+def get_distance(a, b) -> Optional[tuple]:
     if not isinstance(a, (str, tuple, list)) or not isinstance(b, (str, tuple, list)):
         raise TypeError("Invalid type, expected tuple or string")
-    
+
     if type(a) is str:
         if type(b) is str:
             coordinates = a + ';' + b
@@ -73,7 +73,7 @@ def get_distance(a, b) -> Optional[float]:
             coordinates = f"{a[0]},{a[1]}" + ';' + b
         else:
             coordinates = f"{a[0]},{a[1]};{b[0]},{b[1]}"
-    
+
     url = "https://api.mapbox.com/directions-matrix/v1/mapbox/driving/" + coordinates
 
     params = {
@@ -88,15 +88,16 @@ def get_distance(a, b) -> Optional[float]:
     except requests.exceptions.RequestException as e:
         print(f"Error making request: {e}")
         return None
-    
+
     data = response.json()
     distance_matrix = data['distances']
-    return distance_matrix[0][1] # Distance from a to b
+    duration_matrix = data['duration']
+    return distance_matrix[0][1], duration_matrix[0][1] # Distance from a to b
 
 
 
 
-def calculate_price(driver_waypoints: list, source, destination, fuel_price: FuelPrice) -> Optional[float]:
+def calculate_price(driver_waypoints: list, source, destination, fuel_price: FuelPrice) -> Optional[tuple]:
     """"
     Calculate the price a commuter has to pay given a driver's route
 
@@ -107,7 +108,7 @@ def calculate_price(driver_waypoints: list, source, destination, fuel_price: Fue
         fuel_price: Gas price and fuel efficiency
 
     Returns:
-        The price the commuter has to pay
+        Returns [price, detour_distance, detour_time]
     """
 
     # Figure out from where to take the detour in the path
@@ -115,13 +116,14 @@ def calculate_price(driver_waypoints: list, source, destination, fuel_price: Fue
     detour_index = min(range(len(distances)), key=lambda i: distances[i])
     detour_coordinate = driver_waypoints[detour_index]
     try:
-        detour_distance = get_distance(detour_coordinate, source)
-        destination_distance = get_distance(source, destination)
+        detour_distance, detour_duration = get_distance(detour_coordinate, source)
+        destination_distance, destination_duration = get_distance(source, destination)
     except requests.exceptions.RequestException:
         return None
 
     total_distance = (detour_distance + destination_distance) / 1000
-    return total_distance * fuel_price.gas_price * fuel_price.fuel_efficiency
+    price = total_distance * fuel_price.gas_price * fuel_price.fuel_efficiency
+    return price, total_distance, detour_duration + destination_duration
 
 def convert_fmt(coords: list) -> list:
     """
