@@ -91,7 +91,7 @@ def get_distance(a, b) -> Optional[tuple]:
 
     data = response.json()
     distance_matrix = data['distances']
-    duration_matrix = data['duration']
+    duration_matrix = data['durations']
     return distance_matrix[0][1], duration_matrix[0][1] # Distance from a to b
 
 
