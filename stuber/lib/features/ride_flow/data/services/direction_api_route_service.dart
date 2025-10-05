@@ -1,13 +1,11 @@
-
 import 'package:http/http.dart' as http;
 import 'dart:convert';
-
 
 class RouteService {
   static const String _baseUrl = 'https://api.mapbox.com/directions/v5/mapbox';
   static const String _accessToken = 'pk.eyJ1IjoiYWhuYWZ1bCIsImEiOiJjbWI4b24zOTkwazdwMnJvaDhva3c1bmRsIn0.IoyYuI4vuqow-6P-5fQaew';
   
-  static Future<Map<String, dynamic>?> getRoute({
+  static Future<RouteData?> getRoute({
     required double startLat,
     required double startLng,
     required double endLat,
@@ -22,7 +20,7 @@ class RouteService {
       
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        return data;
+        return RouteData.fromMapboxResponse(data);
       } else {
         print('Route API Error: ${response.statusCode}');
         return null;
