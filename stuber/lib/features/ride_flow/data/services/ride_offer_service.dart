@@ -7,7 +7,7 @@ import '../models/ride_offer_model.dart';
 class RideOfferService {
   // Replace with your actual FastAPI server URL
   // static const String baseUrl = 'http://localhost:8000'; // Update this!
-  static const String baseUrl = 'http://10.21.71.179:8000';
+  static const String baseUrl = 'http://10.255.248.179:8000';
   
   static const Map<String, String> headers = {
     'Content-Type': 'application/json',
