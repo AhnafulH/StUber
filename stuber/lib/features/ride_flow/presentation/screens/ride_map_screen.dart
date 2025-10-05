@@ -6,6 +6,7 @@ import 'package:stuber/features/location_search_autocomplete/search_autocomplete
 import 'package:stuber/features/location_search_autocomplete/location_suggestion_widget.dart';
 import 'package:stuber/features/ride_flow/data/services/ride_request_service.dart';
 import 'package:stuber/features/ride_flow/data/services/ride_offer_service.dart';
+import 'package:stuber/features/ride_flow/data/services/direction_api_route_service.dart';
 
 class RideShareScreen extends StatefulWidget {
   const RideShareScreen({super.key});
@@ -19,10 +20,10 @@ class _RideShareScreenState extends State<RideShareScreen> {
   final DraggableScrollableController _bottomSheetController = DraggableScrollableController();
 
   final RideRequestService _rideRequestService = RideRequestService();
-   final RideOfferService _rideOfferService = RideOfferService();
+  final RideOfferService _rideOfferService = RideOfferService();
 
   bool _isRequestingRide = false;
-   bool _isSubmitting = false;
+  bool _isSubmitting = false;
   // State variables for ride details
   String _startingLocation = ''; // Current Location
   String _destination = ''; //Where are you going?
@@ -42,6 +43,10 @@ class _RideShareScreenState extends State<RideShareScreen> {
   // For offer mode
   int _availableSeats = 3;
   int _maxDistance = 5; // in kilometers
+
+  bool _isLoadingRoute = false;
+  RouteData? _currentRoute;
+  Set<Polyline> _polylines = {};  
 
   @override
 Widget build(BuildContext context) {
@@ -838,7 +843,16 @@ Widget _buildRouteItem({
             LocationSuggestionsWidget(
               mapboxAccessToken: "pk.eyJ1IjoiYWhuYWZ1bCIsImEiOiJjbWI4b24zOTkwazdwMnJvaDhva3c1bmRsIn0.IoyYuI4vuqow-6P-5fQaew",
               controller: controller,
-              onLocationSelected: onLocationSelected,
+              onLocationSelected: (LocationDetails location) async {
+                // First, call the original callback to update location
+                onLocationSelected(location);
+                
+                // Then, trigger route fetching if both locations exist
+                await Future.delayed(Duration(milliseconds: 500));
+                if (_startingLocationDetails != null && _destinationLocationDetails != null) {
+                  _fetchRoute();
+                }
+              },
               searchTypes: const ['poi', 'address', 'place'],
             ),
         ],
@@ -1404,6 +1418,7 @@ Widget _buildRouteItem({
         startingLongitude: _startingLocationDetails?.longitude,
         destinationLatitude: _destinationLocationDetails?.latitude,
         destinationLongitude: _destinationLocationDetails?.longitude,
+        routeGeometry: _currentRoute?.toApiFormat(),
       );
 
       // Success!
@@ -1523,6 +1538,7 @@ Widget _buildRouteItem({
         startingLongitude: _startingLocationDetails?.longitude,
         destinationLatitude: _destinationLocationDetails?.latitude,
         destinationLongitude: _destinationLocationDetails?.longitude,
+        routeGeometry: _currentRoute?.toApiFormat(),
       );
 
       // Success!
@@ -1613,6 +1629,57 @@ Set<Marker> _createMarkers() {
   }
 
   return markers;
+}
+
+
+Future<void> _fetchRoute() async {
+  if (_startingLocationDetails == null || _destinationLocationDetails == null) {
+    return;
+  }
+
+  setState(() => _isLoadingRoute = true);
+
+  try {
+    print('🗺️ Fetching route between locations...');
+    
+    final route = await RouteService.getRoute(
+      startLat: _startingLocationDetails!.latitude,
+      startLng: _startingLocationDetails!.longitude,
+      endLat: _destinationLocationDetails!.latitude,
+      endLng: _destinationLocationDetails!.longitude,
+    );
+
+    if (route != null) {
+      setState(() {
+        _currentRoute = route;
+      });
+      
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('✅ Route calculated: ${route.formattedDistance}, ${route.formattedDuration}'),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 2),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('❌ Could not find route between locations'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+    }
+  } catch (e) {
+    print('❌ Error fetching route: $e');
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Error calculating route: $e'),
+        backgroundColor: Colors.red,
+      ),
+    );
+  } finally {
+    setState(() => _isLoadingRoute = false);
+  }
 }
 
 
