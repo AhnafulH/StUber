@@ -95,8 +95,6 @@ def get_distance(a, b) -> Optional[tuple]:
     return distance_matrix[0][1], duration_matrix[0][1] # Distance from a to b
 
 
-
-
 def calculate_price(driver_waypoints: list, source, destination, fuel_price: FuelPrice) -> Optional[tuple]:
     """"
     Calculate the price a commuter has to pay given a driver's route
@@ -118,12 +116,15 @@ def calculate_price(driver_waypoints: list, source, destination, fuel_price: Fue
     try:
         detour_distance, detour_duration = get_distance(detour_coordinate, source)
         destination_distance, destination_duration = get_distance(source, destination)
+        dest_to_end_distance, dest_to_end_duration = get_distance(destination, driver_waypoints[-1])
     except requests.exceptions.RequestException:
         return None
 
     total_distance = (detour_distance + destination_distance) / 1000
     price = total_distance * fuel_price.gas_price * fuel_price.fuel_efficiency
-    return price, total_distance, detour_duration + destination_duration
+    total_detour = (detour_distance, dest_to_end_distance)
+    total_duration = (detour_duration, dest_to_end_duration)
+    return price, total_detour, total_duration
 
 def convert_fmt(coords: list) -> list:
     """
