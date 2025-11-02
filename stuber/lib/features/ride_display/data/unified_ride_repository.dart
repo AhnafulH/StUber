@@ -559,4 +559,273 @@ class UnifiedRideRepository {
       throw Exception('Failed to delete ride match: $e');
     }
   }
+
+    // ============================================================================
+  // TWO-WAY HANDSHAKE METHODS
+  // ============================================================================
+
+  // PHASE 2: Driver Decision Methods
+  // ============================================================================
+
+  /// Get pending matches for a driver (matches waiting for driver's decision)
+  /// Query: driver_id = offerId AND driver_accept IS NULL
+  Future<List<RideMatch>> getPendingDriverMatches(int offerId) async {
+    try {
+      final response = await _client
+          .from('Ride_Match')
+          .select('''
+            *,
+            Ride_Request!rider_id(
+              *,
+              profiles(*)
+            )
+          ''')
+          .eq('driver_id', offerId)
+          .isFilter('driver_accept', null);
+
+      return response.map<RideMatch>((json) => RideMatch.fromJson(json)).toList();
+    } catch (e) {
+      throw Exception('Failed to fetch pending driver matches: $e');
+    }
+  }
+
+  /// Driver accepts a specific match
+  Future<RideMatch> driverAcceptMatch(int matchId) async {
+    try {
+      final response = await _client
+          .from('Ride_Match')
+          .update({'driver_accept': true})
+          .eq('id', matchId)
+          .select('''
+            *,
+            Ride_Request!rider_id(
+              *,
+              profiles(*)
+            ),
+            Ride_Offer!driver_id(
+              *,
+              profiles(*)
+            )
+          ''')
+          .single();
+
+      return RideMatch.fromJson(response);
+    } catch (e) {
+      throw Exception('Failed to accept match: $e');
+    }
+  }
+
+  /// Driver rejects a specific match
+  Future<RideMatch> driverRejectMatch(int matchId) async {
+    try {
+      final response = await _client
+          .from('Ride_Match')
+          .update({'driver_accept': false})
+          .eq('id', matchId)
+          .select('''
+            *,
+            Ride_Request!rider_id(
+              *,
+              profiles(*)
+            ),
+            Ride_Offer!driver_id(
+              *,
+              profiles(*)
+            )
+          ''')
+          .single();
+
+      return RideMatch.fromJson(response);
+    } catch (e) {
+      throw Exception('Failed to reject match: $e');
+    }
+  }
+
+  // PHASE 3: Rider Decision Methods
+  // ============================================================================
+
+  /// Get matches where drivers have accepted (waiting for rider's decision)
+  /// Query: rider_id = requestId AND driver_accept = true AND rider_accept IS NULL
+  Future<List<RideMatch>> getDriversWhoAccepted(int requestId) async {
+    try {
+      final response = await _client
+          .from('Ride_Match')
+          .select('''
+            *,
+            Ride_Offer!driver_id(
+              *,
+              profiles(*)
+            )
+          ''')
+          .eq('rider_id', requestId)
+          .eq('driver_accept', true)
+          .isFilter('rider_accept', null);
+
+      return response.map<RideMatch>((json) => RideMatch.fromJson(json)).toList();
+    } catch (e) {
+      throw Exception('Failed to fetch drivers who accepted: $e');
+    }
+  }
+
+  /// Rider accepts ONE driver and auto-rejects all others
+  Future<RideMatch> riderAcceptMatch(int matchId, int requestId) async {
+    try {
+      // First, accept the chosen match
+      final acceptedMatch = await _client
+          .from('Ride_Match')
+          .update({'rider_accept': true})
+          .eq('id', matchId)
+          .select('''
+            *,
+            Ride_Offer!driver_id(
+              *,
+              profiles(*)
+            ),
+            Ride_Request!rider_id(
+              *,
+              profiles(*)
+            )
+          ''')
+          .single();
+
+      // Then, auto-reject all other pending matches for this rider
+      await _client
+          .from('Ride_Match')
+          .update({'rider_accept': false})
+          .eq('rider_id', requestId)
+          .eq('driver_accept', true)
+          .neq('id', matchId);
+
+      return RideMatch.fromJson(acceptedMatch);
+    } catch (e) {
+      throw Exception('Failed to accept match and reject others: $e');
+    }
+  }
+
+  /// Rider rejects a specific match
+  Future<RideMatch> riderRejectMatch(int matchId) async {
+    try {
+      final response = await _client
+          .from('Ride_Match')
+          .update({'rider_accept': false})
+          .eq('id', matchId)
+          .select('''
+            *,
+            Ride_Offer!driver_id(
+              *,
+              profiles(*)
+            ),
+            Ride_Request!rider_id(
+              *,
+              profiles(*)
+            )
+          ''')
+          .single();
+
+      return RideMatch.fromJson(response);
+    } catch (e) {
+      throw Exception('Failed to reject match: $e');
+    }
+  }
+
+  /// Rider rejects all pending matches
+  Future<void> riderRejectAllMatches(int requestId) async {
+    try {
+      await _client
+          .from('Ride_Match')
+          .update({'rider_accept': false})
+          .eq('rider_id', requestId)
+          .eq('driver_accept', true)
+          .isFilter('rider_accept', null);
+    } catch (e) {
+      throw Exception('Failed to reject all matches: $e');
+    }
+  }
+
+  // PHASE 4: Confirmation Methods
+  // ============================================================================
+
+  /// Get confirmed match for a ride (both driver_accept and rider_accept are true)
+  Future<RideMatch?> getConfirmedMatch(int rideId, RideType rideType) async {
+    try {
+      late List<Map<String, dynamic>> response;
+
+      if (rideType == RideType.request) {
+        response = await _client
+            .from('Ride_Match')
+            .select('''
+              *,
+              Ride_Offer!driver_id(
+                *,
+                profiles(*)
+              )
+            ''')
+            .eq('rider_id', rideId)
+            .eq('driver_accept', true)
+            .eq('rider_accept', true)
+            .limit(1);
+      } else {
+        response = await _client
+            .from('Ride_Match')
+            .select('''
+              *,
+              Ride_Request!rider_id(
+                *,
+                profiles(*)
+              )
+            ''')
+            .eq('driver_id', rideId)
+            .eq('driver_accept', true)
+            .eq('rider_accept', true)
+            .limit(1);
+      }
+
+      if (response.isEmpty) return null;
+      return RideMatch.fromJson(response.first);
+    } catch (e) {
+      throw Exception('Failed to fetch confirmed match: $e');
+    }
+  }
+
+  /// Check if a rider already has a confirmed ride
+  Future<bool> riderHasConfirmedRide(int requestId) async {
+    try {
+      final response = await _client
+          .from('Ride_Match')
+          .select('id')
+          .eq('rider_id', requestId)
+          .eq('driver_accept', true)
+          .eq('rider_accept', true)
+          .limit(1);
+
+      return response.isNotEmpty;
+    } catch (e) {
+      throw Exception('Failed to check confirmed ride: $e');
+    }
+  }
+
+  /// Get all confirmed matches (for admin/overview purposes)
+  Future<List<RideMatch>> getAllConfirmedMatches() async {
+    try {
+      final response = await _client
+          .from('Ride_Match')
+          .select('''
+            *,
+            Ride_Offer!driver_id(
+              *,
+              profiles(*)
+            ),
+            Ride_Request!rider_id(
+              *,
+              profiles(*)
+            )
+          ''')
+          .eq('driver_accept', true)
+          .eq('rider_accept', true);
+
+      return response.map<RideMatch>((json) => RideMatch.fromJson(json)).toList();
+    } catch (e) {
+      throw Exception('Failed to fetch confirmed matches: $e');
+    }
+  }
 }
