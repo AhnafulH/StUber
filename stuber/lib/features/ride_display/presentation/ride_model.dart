@@ -323,3 +323,125 @@ class RideOffer implements RideItem {
   int get numberOfSeats => seatsAvailable ?? 1;
   String get seatsLabel => 'Seats Available';
 }
+
+
+
+class RideConfirmed {
+  final int id;
+  final int? matchId;
+  final int? driverId;
+  final int? riderId;
+  final double confirmedPrice;
+  final String? confirmedPickupLocation;
+  final String? confirmedDropoffLocation;
+  final DateTime? confirmedPickupTime;
+  final String status; // scheduled, in_progress, completed, cancelled
+  final String? pickupCode;
+  final DateTime? actualPickupTime;
+  final DateTime? actualDropoffTime;
+  final double? actualDistance;
+  final String? cancelledBy;
+  final String? cancellationReason;
+  final DateTime? cancelledAt;
+  final DateTime? createdAt;
+  final DateTime? updatedAt;
+  final RideOffer? rideOffer;
+  final RideRequest? rideRequest;
+
+  RideConfirmed({
+    required this.id,
+    this.matchId,
+    this.driverId,
+    this.riderId,
+    required this.confirmedPrice,
+    this.confirmedPickupLocation,
+    this.confirmedDropoffLocation,
+    this.confirmedPickupTime,
+    this.status = 'scheduled',
+    this.pickupCode,
+    this.actualPickupTime,
+    this.actualDropoffTime,
+    this.actualDistance,
+    this.cancelledBy,
+    this.cancellationReason,
+    this.cancelledAt,
+    this.createdAt,
+    this.updatedAt,
+    this.rideOffer,
+    this.rideRequest,
+  });
+
+  factory RideConfirmed.fromJson(Map<String, dynamic> json) {
+    return RideConfirmed(
+      id: json['id'] ?? 0,
+      matchId: json['match_id'],
+      driverId: json['driver_id'],
+      riderId: json['rider_id'],
+      confirmedPrice: (json['confirmed_price'] ?? 0).toDouble(),
+      confirmedPickupLocation: json['confirmed_pickup_location'],
+      confirmedDropoffLocation: json['confirmed_dropoff_location'],
+      confirmedPickupTime: json['confirmed_pickup_time'] != null
+          ? DateTime.parse(json['confirmed_pickup_time'])
+          : null,
+      status: json['status'] ?? 'scheduled',
+      pickupCode: json['pickup_code'],
+      actualPickupTime: json['actual_pickup_time'] != null
+          ? DateTime.parse(json['actual_pickup_time'])
+          : null,
+      actualDropoffTime: json['actual_dropoff_time'] != null
+          ? DateTime.parse(json['actual_dropoff_time'])
+          : null,
+      actualDistance: json['actual_distance']?.toDouble(),
+      cancelledBy: json['cancelled_by'],
+      cancellationReason: json['cancellation_reason'],
+      cancelledAt: json['cancelled_at'] != null
+          ? DateTime.parse(json['cancelled_at'])
+          : null,
+      createdAt: json['created_at'] != null
+          ? DateTime.parse(json['created_at'])
+          : null,
+      updatedAt: json['updated_at'] != null
+          ? DateTime.parse(json['updated_at'])
+          : null,
+      rideOffer: json['Ride_Offer'] != null
+          ? RideOffer.fromJson(json['Ride_Offer'])
+          : null,
+      rideRequest: json['Ride_Request'] != null
+          ? RideRequest.fromJson(json['Ride_Request'])
+          : null,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'match_id': matchId,
+      'driver_id': driverId,
+      'rider_id': riderId,
+      'confirmed_price': confirmedPrice,
+      'confirmed_pickup_location': confirmedPickupLocation,
+      'confirmed_dropoff_location': confirmedDropoffLocation,
+      'confirmed_pickup_time': confirmedPickupTime?.toIso8601String(),
+      'status': status,
+      'pickup_code': pickupCode,
+      'actual_pickup_time': actualPickupTime?.toIso8601String(),
+      'actual_dropoff_time': actualDropoffTime?.toIso8601String(),
+      'actual_distance': actualDistance,
+      'cancelled_by': cancelledBy,
+      'cancellation_reason': cancellationReason,
+      'cancelled_at': cancelledAt?.toIso8601String(),
+      'created_at': createdAt?.toIso8601String(),
+      'updated_at': updatedAt?.toIso8601String(),
+    };
+  }
+
+  // Helper getters
+  bool get isScheduled => status == 'scheduled';
+  bool get isInProgress => status == 'in_progress';
+  bool get isCompleted => status == 'completed';
+  bool get isCancelled => status == 'cancelled';
+  
+  // Get driver or rider profile
+  Profile? get driverProfile => rideOffer?.profile;
+  Profile? get riderProfile => rideRequest?.profile;
+}
