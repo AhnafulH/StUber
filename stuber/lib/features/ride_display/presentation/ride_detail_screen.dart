@@ -22,12 +22,14 @@ class _RideDetailScreenState extends State<RideDetailScreen> {
   bool _isLoading = false;
   List<RideMatch> _rideMatches = [];
   bool _isLoadingMatches = false;
+  RideConfirmed? _confirmedRide;
 
   @override
   void initState() {
     super.initState();
     currentRide = widget.rideItem;
     _loadRideMatches();
+    _checkConfirmedRide(); 
   }
 
   bool get isMyRide => currentRide.userUuid == 
@@ -515,7 +517,14 @@ class _RideDetailScreenState extends State<RideDetailScreen> {
             return _RideMatchCard(
               match: match,
               currentRideType: currentRide.rideType,
+              isMyRide: isMyRide,
               onTap: () => _handleMatchTap(match),
+              onDriverAction: isMyRide && currentRide.rideType == RideType.offer
+                ? _handleDriverAction
+                : null,
+              onRiderAction: isMyRide && currentRide.rideType == RideType.request
+                ? _handleRiderAction
+                : null,
             );
           },
         ),
@@ -538,10 +547,24 @@ class _RideDetailScreenState extends State<RideDetailScreen> {
     });
 
     try {
-      final matches = await _repository.getRideMatches(
-        currentRide.id, 
-        currentRide.rideType
-      );
+      List<RideMatch> matches = [];
+      
+      if (isMyRide) {
+        // If it's MY ride, show different matches based on ride type
+        if (currentRide.rideType == RideType.offer) {
+          // PHASE 2: I'm a driver - show riders waiting for my decision
+          matches = await _repository.getPendingDriverMatches(currentRide.id);
+        } else {
+          // PHASE 3: I'm a rider - show drivers who accepted me
+          matches = await _repository.getDriversWhoAccepted(currentRide.id);
+        }
+      } else {
+        // If it's NOT my ride, show all matches (read-only view)
+        matches = await _repository.getRideMatches(
+          currentRide.id, 
+          currentRide.rideType
+        );
+      }
       
       setState(() {
         _rideMatches = matches;
@@ -762,6 +785,150 @@ class _RideDetailScreenState extends State<RideDetailScreen> {
       }
     }
   }
+
+
+
+
+
+
+    // Handler for driver actions (Phase 2)
+  Future<void> _handleDriverAction(int matchId, bool accept) async {
+    try {
+      if (accept) {
+        await _repository.driverAcceptMatch(matchId);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Match accepted! Rider will be notified.'),
+              backgroundColor: Colors.green,
+            ),
+          );
+        }
+      } else {
+        await _repository.driverRejectMatch(matchId);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Match declined.'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+      }
+      
+      // Reload matches
+      _loadRideMatches();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  // Handler for rider actions (Phase 3)
+  Future<void> _handleRiderAction(int matchId, bool accept) async {
+    try {
+      if (accept) {
+        // Check if rider already has a confirmed ride
+        final hasConfirmed = await _repository.riderHasConfirmedRide(currentRide.id);
+        
+        if (hasConfirmed) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('You already have a confirmed ride!'),
+                backgroundColor: Colors.orange,
+              ),
+            );
+          }
+          return;
+        }
+        
+        // Show confirmation dialog before accepting
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Confirm Ride'),
+            content: const Text(
+              'Are you sure you want to accept this driver? '
+              'This will automatically decline all other pending matches.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text('Cancel'),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.green),
+                child: const Text('Confirm'),
+              ),
+            ],
+          ),
+        );
+        
+        if (confirmed == true) {
+          await _repository.riderAcceptMatch(matchId, currentRide.id);
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Ride confirmed! Driver will be notified.'),
+                backgroundColor: Colors.green,
+                duration: Duration(seconds: 3),
+              ),
+            );
+          }
+        }
+      } else {
+        await _repository.riderRejectMatch(matchId);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('Match declined.'),
+              backgroundColor: Colors.orange,
+            ),
+          );
+        }
+      }
+      
+      // Reload matches
+      _loadRideMatches();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _checkConfirmedRide() async {
+    try {
+      final confirmed = await _repository.getConfirmedMatch(
+        currentRide.id,
+        currentRide.rideType,
+      );
+      
+      if (confirmed != null) {
+        final confirmedRide = await _repository.getConfirmedRideByMatchId(confirmed.id);
+        if (mounted) {
+          setState(() {
+            _confirmedRide = confirmedRide;
+          });
+        }
+      }
+    } catch (e) {
+      print('Error checking confirmed ride: $e');
+    }
+  }
 }
 
 class _RoutePoint extends StatelessWidget {
@@ -897,11 +1064,17 @@ class _RideMatchCard extends StatelessWidget {
   final RideMatch match;
   final RideType currentRideType;
   final VoidCallback onTap;
+  final bool isMyRide;
+  final Function(int matchId, bool accept)? onDriverAction;
+  final Function(int matchId, bool accept)? onRiderAction;
 
   const _RideMatchCard({
     required this.match,
     required this.currentRideType,
     required this.onTap,
+    required this.isMyRide,
+    this.onDriverAction,
+    this.onRiderAction,
   });
 
   @override
@@ -927,7 +1100,10 @@ class _RideMatchCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey.shade200),
+          border: Border.all(
+            color: match.isBothAccepted ? Colors.green : Colors.grey.shade200,
+            width: match.isBothAccepted ? 2 : 1,
+          ),
           boxShadow: [
             BoxShadow(
               color: Colors.black.withOpacity(0.05),
@@ -1085,13 +1261,103 @@ class _RideMatchCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                Icon(
-                  Icons.arrow_forward_ios,
-                  size: 16,
-                  color: Colors.grey.shade400,
-                ),
               ],
             ),
+            
+            // Price if available
+            if (match.price != null) ...[
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Icon(Icons.attach_money, size: 16, color: Colors.green.shade600),
+                  const SizedBox(width: 4),
+                  Text(
+                    '\$${match.price!.toStringAsFixed(2)}',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.green.shade700,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+            
+            // Action buttons - only show if it's my ride and not confirmed
+            if (isMyRide && !match.isBothAccepted) ...[
+              const SizedBox(height: 12),
+              const Divider(),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        if (currentRideType == RideType.offer && onDriverAction != null) {
+                          onDriverAction!(match.id, false); // Driver rejects
+                        } else if (currentRideType == RideType.request && onRiderAction != null) {
+                          onRiderAction!(match.id, false); // Rider rejects
+                        }
+                      },
+                      icon: const Icon(Icons.close, size: 18),
+                      label: const Text('Decline'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red.shade50,
+                        foregroundColor: Colors.red,
+                        elevation: 0,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        if (currentRideType == RideType.offer && onDriverAction != null) {
+                          onDriverAction!(match.id, true); // Driver accepts
+                        } else if (currentRideType == RideType.request && onRiderAction != null) {
+                          onRiderAction!(match.id, true); // Rider accepts
+                        }
+                      },
+                      icon: const Icon(Icons.check, size: 18),
+                      label: const Text('Accept'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.green,
+                        foregroundColor: Colors.white,
+                        elevation: 0,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+            
+            // Show confirmed badge
+            if (match.isBothAccepted) ...[
+              const SizedBox(height: 12),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.green.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.green.shade200),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.check_circle, color: Colors.green.shade700, size: 18),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Ride Confirmed!',
+                      style: TextStyle(
+                        color: Colors.green.shade700,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ],
         ),
       ),
