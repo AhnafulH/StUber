@@ -15,6 +15,9 @@ class AppBottomNavigationBar extends StatelessWidget {
     return NavigationBar(
       onDestinationSelected: onItemSelected,
       selectedIndex: selectedIndex,
+      backgroundColor: Colors.grey.shade100, // Background of entire nav bar Color(0xFFF8F9FA), Colors.blue.shade50 Colors.grey.shade50
+      indicatorColor: Colors.blue.shade100, // The pill/background behind selected icon
+      surfaceTintColor: Colors.transparent, // Removes material 3 tint effect
       destinations: const [
         NavigationDestination(
           icon: Icon(Icons.map_outlined),
