@@ -66,6 +66,22 @@
 		<key>ride_tracking</key>
 		<string>Stuber needs precise location to accurately track your ride progress and estimated arrival time.</string>
 	</dict>
+	<!-- Put me in the [my_project]/ios/Runner/Info.plist file -->
+<!-- Google Sign-in Section -->
+	<key>CFBundleURLTypes</key>
+	<array>
+	<dict>
+		<key>CFBundleTypeRole</key>
+		<string>Editor</string>
+		<key>CFBundleURLSchemes</key>
+		<array>
+		<!-- TODO Replace this value: -->
+		<!-- Copied from GoogleService-Info.plist key REVERSED_CLIENT_ID -->
+		<string>com.googleusercontent.apps.687384385495-r4hjpaajiftc1g9fs8v29rn6i6b7qed7</string>
+		</array>
+	</dict>
+	</array>
+	<!-- End of the Google Sign-in Section -->
 
 </dict>
 </plist>

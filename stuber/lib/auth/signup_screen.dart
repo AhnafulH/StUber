@@ -134,7 +134,8 @@ class _SignUpScreenState extends State<SignUpScreen> {
       ),
       child: ElevatedButton.icon(
         onPressed: _isLoading ? null : () {
-          // _handleGoogleSignIn();
+          print("🔥 Google button tapped on SIGNUP screen");
+          _handleGoogleSignIn();
         },
         icon: _buildGoogleIcon(),
         label: const Text(
@@ -541,6 +542,41 @@ class _SignUpScreenState extends State<SignUpScreen> {
   //     }
   //   }
   // }
+  Future<void> _handleGoogleSignIn() async {
+  print("⚡ SIGNUP: _handleGoogleSignIn() called");
+
+  if (!_acceptTerms) {
+    print("❌ Terms not accepted");
+    _showErrorMessage('Please accept the Terms of Service and Privacy Policy');
+    return;
+  }
+
+  setState(() => _isLoading = true);
+
+  try {
+    print("🔵 Calling AuthService.signInWithGoogle()");
+    final response = await _authService.signInWithGoogle();
+
+    print("🟢 Google sign-in response: $response");
+
+    if (response?.user != null && mounted) {
+      print("🎉 Google signup success: ${response!.user!.id}");
+      _showSuccessMessage("Signed up with Google!");
+
+      // Give UI time to show snackbar
+      await Future.delayed(const Duration(milliseconds: 500));
+
+      // AuthGate will automatically route to MainLayout
+      Navigator.of(context).pop();
+    }
+  } catch (error) {
+    print("❌ Google signup FAILED: $error");
+    _showErrorMessage('Google sign-in failed: $error');
+  } finally {
+    if (mounted) setState(() => _isLoading = false);
+  }
+}
+
 
   Future<void> _handleEmailSignUp() async {
     if (!_formKey.currentState!.validate()) {

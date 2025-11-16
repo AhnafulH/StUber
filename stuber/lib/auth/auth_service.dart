@@ -1,5 +1,5 @@
 // lib/services/auth_service.dart
-// import 'package:google_sign_in/google_sign_in.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 
@@ -10,42 +10,157 @@ class AuthService {
   // final GoogleSignIn _googleSignIn = GoogleSignIn(
   //   clientId: dotenv.env['GOOGLE_CLIENT_ID']!,
   // );
+  // implement the google sign in here
+  // NEW GoogleSignIn singleton
+  final scopes = ['email', 'profile'];
+  final _googleSignIn = GoogleSignIn.instance;
+  // final  _googleSignIn = GoogleSignIn.instance(
+  //   scopes: ['email', 'profile'],
+  // );
 
-  // Email Sign Up
-  Future<AuthResponse?> signUpWithEmail({
-    required String email,
-    required String password,
-    required String fullName,
-    String? phone, // Add phone parameter
-  }) async {
+  Future<AuthResponse?> signInWithGoogle() async {
     try {
-      final response = await _supabase.auth.signUp(
-        email: email,
-        password: password,
-        data: {
-          'full_name': fullName,
-          'user_type': 'rider', // Set default as rider
-          'created_at': DateTime.now().toIso8601String(),
-        },
+      const webClientId = '687384385495-sso0i0fgc9s991ebrf150kkppkv0dft0.apps.googleusercontent.com';
+      const iosClientId = '687384385495-r4hjpaajiftc1g9fs8v29rn6i6b7qed7.apps.googleusercontent.com';
+
+      // This initializes the new GoogleSignIn v6 API
+      await _googleSignIn.initialize(
+        serverClientId: webClientId,
+        clientId: iosClientId,
       );
 
-      // Create profile in profiles table with phone number
+      // Uses lightweight auth (silent first, fallback to UI)
+      final googleUser =
+          await _googleSignIn.attemptLightweightAuthentication() ??
+          await _googleSignIn.authenticate();
+
+      if (googleUser == null) {
+        throw AuthException('Failed to sign in with Google.');
+      }
+
+      // Acquire authorization (to get accessToken)
+      final authorization =
+          await googleUser.authorizationClient.authorizationForScopes(
+                ['email', 'profile'],
+              ) ??
+              await googleUser.authorizationClient.authorizeScopes(
+                ['email', 'profile'],
+              );
+
+      final idToken = googleUser.authentication.idToken;
+      final accessToken = authorization.accessToken;
+
+      if (idToken == null) {
+        throw AuthException('No ID Token found.');
+      }
+
+      final response = await _supabase.auth.signInWithIdToken(
+        provider: OAuthProvider.google,
+        idToken: idToken,
+        accessToken: accessToken,
+      );
+
+      // Create user profile in DB
       if (response.user != null) {
         await _createOrUpdateProfile(
           userId: response.user!.id,
-          fullName: fullName,
-          email: email,
-          phone: phone, // Pass phone to profile creation
+          fullName: googleUser.displayName ?? 'Google User',
+          email: googleUser.email,
+          phone: null,
         );
       }
 
       return response;
     } on AuthException catch (error) {
-      throw Exception('Authentication error: ${error.message}');
-    } catch (error) {
-      throw Exception('Sign up failed: $error');
+      throw Exception("Google sign in error: ${error.message}");
+    } catch (e) {
+      throw Exception("Google sign in failed: $e");
     }
   }
+
+
+
+
+
+
+
+
+
+
+Future<AuthResponse?> signUpWithEmail({
+  required String email,
+  required String password,
+  required String fullName,
+  String? phone,
+}) async {
+  try {
+    final response = await _supabase.auth.signUp(
+      email: email,
+      password: password,
+      emailRedirectTo: "stuber://email-confirm",
+      data: {
+        'full_name': fullName,
+        'user_type': 'rider',
+        'created_at': DateTime.now().toIso8601String(),
+      },
+    );
+
+    // DO NOT create profile here — user isn't verified yet
+
+    return response;
+
+  } on AuthException catch (error) {
+    // Email already registered → resend verification email
+    if (error.message.contains("already registered")) {
+      await _supabase.auth.resend(
+        type: OtpType.signup,
+        email: email,
+      );
+      throw Exception("This email already exists. A new verification email was sent.");
+    }
+
+    throw Exception("Authentication error: ${error.message}");
+  } catch (error) {
+    throw Exception("Sign up failed: $error");
+  }
+}
+
+  // Email Sign Up
+  // Future<AuthResponse?> signUpWithEmail({
+  //   required String email,
+  //   required String password,
+  //   required String fullName,
+  //   String? phone, // Add phone parameter
+  // }) async {
+  //   try {
+  //     final response = await _supabase.auth.signUp(
+  //     email: email,
+  //     password: password,
+  //     emailRedirectTo: "stuber://email-confirm",
+  //     data: {
+  //       'full_name': fullName,
+  //       'user_type': 'rider',
+  //       'created_at': DateTime.now().toIso8601String(),
+  //     },
+  //   );
+
+  //     // Create profile in profiles table with phone number
+  //     if (response.user != null) {
+  //       await _createOrUpdateProfile(
+  //         userId: response.user!.id,
+  //         fullName: fullName,
+  //         email: email,
+  //         phone: phone, // Pass phone to profile creation
+  //       );
+  //     }
+
+  //     return response;
+  //   } on AuthException catch (error) {
+  //     throw Exception('Authentication error: ${error.message}');
+  //   } catch (error) {
+  //     throw Exception('Sign up failed: $error');
+  //   }
+  // }
 
   // Google Sign In
   // Future<AuthResponse?> signInWithGoogle() async {
@@ -142,6 +257,9 @@ class AuthService {
   User? getCurrentUser() {
     return _supabase.auth.currentUser;
   }
+
+
+
 
   // Listen to auth state changes
   Stream<AuthState> get authStateChanges => _supabase.auth.onAuthStateChange;

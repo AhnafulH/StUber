@@ -803,6 +803,10 @@ class UnifiedRideRepository {
       throw Exception('Failed to check confirmed ride: $e');
     }
   }
+  // added a placeholder to allow the app to build
+ Future<RideConfirmed?> getConfirmedRideByMatchId(int matchId) async {
+  return null; // <-- placeholder to let the app build
+}
 
   /// Get all confirmed matches (for admin/overview purposes)
   Future<List<RideMatch>> getAllConfirmedMatches() async {

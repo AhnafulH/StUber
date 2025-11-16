@@ -130,7 +130,8 @@ class _SignInScreenState extends State<SignInScreen> {
       ),
       child: ElevatedButton.icon(
         onPressed: _isLoading ? null : () {
-          // _handleGoogleSignIn(); // Disabled for now like your signup
+           print("🔥 Google button tapped");
+          _handleGoogleSignIn(); // Disabled for now like your signup
         },
         icon: _buildGoogleIcon(),
         label: const Text(
@@ -422,7 +423,25 @@ class _SignInScreenState extends State<SignInScreen> {
       ],
     );
   }
+  Future<void> _handleGoogleSignIn() async {
+  setState(() => _isLoading = true);
 
+  try {
+    print('Initiating Google Sign-In...');
+    final res = await _authService.signInWithGoogle();
+
+    if (res?.user != null && mounted) {
+      _showSuccessMessage("Signed in with Google!");
+
+      await Future.delayed(const Duration(milliseconds: 500));
+      Navigator.of(context).pop(); // AuthGate will show MainLayout
+    }
+  } catch (e) {
+    _showErrorMessage(e.toString());
+  } finally {
+    if (mounted) setState(() => _isLoading = false);
+  }
+}
   Future<void> _handleEmailSignIn() async {
     if (!_formKey.currentState!.validate()) {
       HapticFeedback.lightImpact();
