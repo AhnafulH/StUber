@@ -668,6 +668,43 @@ class UnifiedRideRepository {
   }
 
   /// Rider accepts ONE driver and auto-rejects all others
+  // Future<RideMatch> riderAcceptMatch(int matchId, int requestId) async {
+  //   try {
+  //     // First, accept the chosen match
+  //     final acceptedMatch = await _client
+  //         .from('Ride_Match')
+  //         .update({'rider_accept': true})
+  //         .eq('id', matchId)
+  //         .select('''
+  //           *,
+  //           Ride_Offer!driver_id(
+  //             *,
+  //             profiles(*)
+  //           ),
+  //           Ride_Request!rider_id(
+  //             *,
+  //             profiles(*)
+  //           )
+  //         ''')
+  //         .single();
+
+  //     // Then, auto-reject all other pending matches for this rider
+  //     await _client
+  //         .from('Ride_Match')
+  //         .update({'rider_accept': false})
+  //         .eq('rider_id', requestId)
+  //         .eq('driver_accept', true)
+  //         .neq('id', matchId);
+
+  //     return RideMatch.fromJson(acceptedMatch);
+  //   } catch (e) {
+  //     throw Exception('Failed to accept match and reject others: $e');
+  //   }
+  // }
+
+
+  /// Rider accepts ONE driver and auto-rejects all others
+/// Also creates a confirmed ride entry automatically
   Future<RideMatch> riderAcceptMatch(int matchId, int requestId) async {
     try {
       // First, accept the chosen match
@@ -688,6 +725,8 @@ class UnifiedRideRepository {
           ''')
           .single();
 
+      final match = RideMatch.fromJson(acceptedMatch);
+
       // Then, auto-reject all other pending matches for this rider
       await _client
           .from('Ride_Match')
@@ -696,9 +735,20 @@ class UnifiedRideRepository {
           .eq('driver_accept', true)
           .neq('id', matchId);
 
-      return RideMatch.fromJson(acceptedMatch);
+      // Create the confirmed ride automatically
+      await createConfirmedRide(
+        matchId: match.id,
+        driverId: match.driverId!,
+        riderId: match.riderId!,
+        confirmedPrice: match.price ?? 0.0,
+        confirmedPickupLocation: match.rideRequest?.startingLocation,
+        confirmedDropoffLocation: match.rideRequest?.destination,
+        confirmedPickupTime: match.rideRequest?.departureDatetime,
+      );
+
+      return match;
     } catch (e) {
-      throw Exception('Failed to accept match and reject others: $e');
+      throw Exception('Failed to accept match and create confirmed ride: $e');
     }
   }
 
@@ -826,6 +876,416 @@ class UnifiedRideRepository {
       return response.map<RideMatch>((json) => RideMatch.fromJson(json)).toList();
     } catch (e) {
       throw Exception('Failed to fetch confirmed matches: $e');
+    }
+  }
+
+
+
+    // ============================================================================
+  // RIDE_CONFIRMED METHODS (Phase 4 - Confirmed Rides)
+  // ============================================================================
+
+  /// Create a confirmed ride after both parties accept
+  Future<RideConfirmed> createConfirmedRide({
+    required int matchId,
+    required int driverId,
+    required int riderId,
+    required double confirmedPrice,
+    String? confirmedPickupLocation,
+    String? confirmedDropoffLocation,
+    DateTime? confirmedPickupTime,
+  }) async {
+    try {
+      final response = await _client.from('Ride_Confirmed').insert({
+        'match_id': matchId,
+        'driver_id': driverId,
+        'rider_id': riderId,
+        'confirmed_price': confirmedPrice,
+        'confirmed_pickup_location': confirmedPickupLocation,
+        'confirmed_dropoff_location': confirmedDropoffLocation,
+        'confirmed_pickup_time': confirmedPickupTime?.toIso8601String(),
+        'status': 'scheduled',
+      }).select('''
+        *,
+        Ride_Offer!driver_id(
+          *,
+          profiles(*)
+        ),
+        Ride_Request!rider_id(
+          *,
+          profiles(*)
+        )
+      ''').single();
+
+      return RideConfirmed.fromJson(response);
+    } catch (e) {
+      throw Exception('Failed to create confirmed ride: $e');
+    }
+  }
+
+  /// Get all confirmed rides for the current user (as driver or rider)
+  Future<List<RideConfirmed>> getUserConfirmedRides() async {
+    try {
+      final userId = _client.auth.currentUser?.id;
+      if (userId == null) {
+        throw Exception('User not authenticated');
+      }
+
+      // Get all ride offers by this user
+      final userOffers = await _client
+          .from('Ride_Offer')
+          .select('id')
+          .eq('uuid', userId);
+      
+      final offerIds = userOffers.map((offer) => offer['id'] as int).toList();
+
+      // Get all ride requests by this user
+      final userRequests = await _client
+          .from('Ride_Request')
+          .select('id')
+          .eq('uuid', userId);
+      
+      final requestIds = userRequests.map((request) => request['id'] as int).toList();
+
+      // Get confirmed rides where user is either driver or rider
+      List<Map<String, dynamic>> response = [];
+      
+      if (offerIds.isNotEmpty || requestIds.isNotEmpty) {
+        var query = _client
+            .from('Ride_Confirmed')
+            .select('''
+              *,
+              Ride_Offer!driver_id(
+                *,
+                profiles(*)
+              ),
+              Ride_Request!rider_id(
+                *,
+                profiles(*)
+              )
+            ''');
+        
+        // Build OR condition for driver_id or rider_id
+        if (offerIds.isNotEmpty && requestIds.isNotEmpty) {
+          query = query.or('driver_id.in.(${offerIds.join(',')}),rider_id.in.(${requestIds.join(',')})');
+        } else if (offerIds.isNotEmpty) {
+          query = query.inFilter('driver_id', offerIds);
+        } else if (requestIds.isNotEmpty) {
+          query = query.inFilter('rider_id', requestIds);
+        }
+        
+        response = await query.order('confirmed_pickup_time', ascending: true);
+      }
+
+      return response.map<RideConfirmed>((json) => RideConfirmed.fromJson(json)).toList();
+    } catch (e) {
+      throw Exception('Failed to fetch confirmed rides: $e');
+    }
+  }
+
+  /// Get a specific confirmed ride by ID
+  Future<RideConfirmed?> getConfirmedRideById(int confirmedRideId) async {
+    try {
+      final response = await _client
+          .from('Ride_Confirmed')
+          .select('''
+            *,
+            Ride_Offer!driver_id(
+              *,
+              profiles(*)
+            ),
+            Ride_Request!rider_id(
+              *,
+              profiles(*)
+            )
+          ''')
+          .eq('id', confirmedRideId)
+          .maybeSingle();
+
+      if (response == null) return null;
+      return RideConfirmed.fromJson(response);
+    } catch (e) {
+      throw Exception('Failed to fetch confirmed ride: $e');
+    }
+  }
+
+  /// Get confirmed ride by match ID
+  Future<RideConfirmed?> getConfirmedRideByMatchId(int matchId) async {
+    try {
+      final response = await _client
+          .from('Ride_Confirmed')
+          .select('''
+            *,
+            Ride_Offer!driver_id(
+              *,
+              profiles(*)
+            ),
+            Ride_Request!rider_id(
+              *,
+              profiles(*)
+            )
+          ''')
+          .eq('match_id', matchId)
+          .maybeSingle();
+
+      if (response == null) return null;
+      return RideConfirmed.fromJson(response);
+    } catch (e) {
+      throw Exception('Failed to fetch confirmed ride by match: $e');
+    }
+  }
+
+  /// Update ride status (scheduled -> in_progress -> completed)
+  Future<RideConfirmed> updateRideStatus({
+    required int confirmedRideId,
+    required String status,
+  }) async {
+    try {
+      final updateData = {
+        'status': status,
+        'updated_at': DateTime.now().toIso8601String(),
+      };
+
+      // Add timestamps based on status
+      if (status == 'in_progress' && await _isRideScheduled(confirmedRideId)) {
+        updateData['actual_pickup_time'] = DateTime.now().toIso8601String();
+      } else if (status == 'completed') {
+        updateData['actual_dropoff_time'] = DateTime.now().toIso8601String();
+      }
+
+      final response = await _client
+          .from('Ride_Confirmed')
+          .update(updateData)
+          .eq('id', confirmedRideId)
+          .select('''
+            *,
+            Ride_Offer!driver_id(
+              *,
+              profiles(*)
+            ),
+            Ride_Request!rider_id(
+              *,
+              profiles(*)
+            )
+          ''')
+          .single();
+
+      return RideConfirmed.fromJson(response);
+    } catch (e) {
+      throw Exception('Failed to update ride status: $e');
+    }
+  }
+
+  /// Helper method to check if ride is scheduled
+  Future<bool> _isRideScheduled(int confirmedRideId) async {
+    final response = await _client
+        .from('Ride_Confirmed')
+        .select('status')
+        .eq('id', confirmedRideId)
+        .single();
+    return response['status'] == 'scheduled';
+  }
+
+  /// Cancel a confirmed ride
+  Future<RideConfirmed> cancelConfirmedRide({
+    required int confirmedRideId,
+    required String cancelledBy, // 'driver' or 'rider'
+    required String cancellationReason,
+  }) async {
+    try {
+      final response = await _client
+          .from('Ride_Confirmed')
+          .update({
+            'status': 'cancelled',
+            'cancelled_by': cancelledBy,
+            'cancellation_reason': cancellationReason,
+            'cancelled_at': DateTime.now().toIso8601String(),
+            'updated_at': DateTime.now().toIso8601String(),
+          })
+          .eq('id', confirmedRideId)
+          .select('''
+            *,
+            Ride_Offer!driver_id(
+              *,
+              profiles(*)
+            ),
+            Ride_Request!rider_id(
+              *,
+              profiles(*)
+            )
+          ''')
+          .single();
+
+      return RideConfirmed.fromJson(response);
+    } catch (e) {
+      throw Exception('Failed to cancel ride: $e');
+    }
+  }
+
+  /// Update confirmed ride details
+  Future<RideConfirmed> updateConfirmedRide({
+    required int confirmedRideId,
+    String? confirmedPickupLocation,
+    String? confirmedDropoffLocation,
+    DateTime? confirmedPickupTime,
+    String? pickupCode,
+    double? actualDistance,
+  }) async {
+    try {
+      final updateData = <String, dynamic>{
+        'updated_at': DateTime.now().toIso8601String(),
+      };
+
+      if (confirmedPickupLocation != null) {
+        updateData['confirmed_pickup_location'] = confirmedPickupLocation;
+      }
+      if (confirmedDropoffLocation != null) {
+        updateData['confirmed_dropoff_location'] = confirmedDropoffLocation;
+      }
+      if (confirmedPickupTime != null) {
+        updateData['confirmed_pickup_time'] = confirmedPickupTime.toIso8601String();
+      }
+      if (pickupCode != null) {
+        updateData['pickup_code'] = pickupCode;
+      }
+      if (actualDistance != null) {
+        updateData['actual_distance'] = actualDistance;
+      }
+
+      final response = await _client
+          .from('Ride_Confirmed')
+          .update(updateData)
+          .eq('id', confirmedRideId)
+          .select('''
+            *,
+            Ride_Offer!driver_id(
+              *,
+              profiles(*)
+            ),
+            Ride_Request!rider_id(
+              *,
+              profiles(*)
+            )
+          ''')
+          .single();
+
+      return RideConfirmed.fromJson(response);
+    } catch (e) {
+      throw Exception('Failed to update confirmed ride: $e');
+    }
+  }
+
+  /// Get upcoming confirmed rides for user
+  Future<List<RideConfirmed>> getUpcomingConfirmedRides() async {
+    try {
+      final userId = _client.auth.currentUser?.id;
+      if (userId == null) {
+        throw Exception('User not authenticated');
+      }
+
+      // Get user's offer and request IDs
+      final userOffers = await _client
+          .from('Ride_Offer')
+          .select('id')
+          .eq('uuid', userId);
+      final offerIds = userOffers.map((offer) => offer['id'] as int).toList();
+
+      final userRequests = await _client
+          .from('Ride_Request')
+          .select('id')
+          .eq('uuid', userId);
+      final requestIds = userRequests.map((request) => request['id'] as int).toList();
+
+      if (offerIds.isEmpty && requestIds.isEmpty) {
+        return [];
+      }
+
+      // Get upcoming rides
+      var query = _client
+          .from('Ride_Confirmed')
+          .select('''
+            *,
+            Ride_Offer!driver_id(
+              *,
+              profiles(*)
+            ),
+            Ride_Request!rider_id(
+              *,
+              profiles(*)
+            )
+          ''')
+          .inFilter('status', ['scheduled', 'in_progress'])
+          .gte('confirmed_pickup_time', DateTime.now().toIso8601String());
+
+      if (offerIds.isNotEmpty && requestIds.isNotEmpty) {
+        query = query.or('driver_id.in.(${offerIds.join(',')}),rider_id.in.(${requestIds.join(',')})');
+      } else if (offerIds.isNotEmpty) {
+        query = query.inFilter('driver_id', offerIds);
+      } else {
+        query = query.inFilter('rider_id', requestIds);
+      }
+
+      final response = await query.order('confirmed_pickup_time', ascending: true);
+
+      return response.map<RideConfirmed>((json) => RideConfirmed.fromJson(json)).toList();
+    } catch (e) {
+      throw Exception('Failed to fetch upcoming rides: $e');
+    }
+  }
+
+  /// Get ride history (completed or cancelled)
+  Future<List<RideConfirmed>> getRideHistory() async {
+    try {
+      final userId = _client.auth.currentUser?.id;
+      if (userId == null) {
+        throw Exception('User not authenticated');
+      }
+
+      // Get user's offer and request IDs
+      final userOffers = await _client
+          .from('Ride_Offer')
+          .select('id')
+          .eq('uuid', userId);
+      final offerIds = userOffers.map((offer) => offer['id'] as int).toList();
+
+      final userRequests = await _client
+          .from('Ride_Request')
+          .select('id')
+          .eq('uuid', userId);
+      final requestIds = userRequests.map((request) => request['id'] as int).toList();
+
+      if (offerIds.isEmpty && requestIds.isEmpty) {
+        return [];
+      }
+
+      var query = _client
+          .from('Ride_Confirmed')
+          .select('''
+            *,
+            Ride_Offer!driver_id(
+              *,
+              profiles(*)
+            ),
+            Ride_Request!rider_id(
+              *,
+              profiles(*)
+            )
+          ''')
+          .inFilter('status', ['completed', 'cancelled']);
+
+      if (offerIds.isNotEmpty && requestIds.isNotEmpty) {
+        query = query.or('driver_id.in.(${offerIds.join(',')}),rider_id.in.(${requestIds.join(',')})');
+      } else if (offerIds.isNotEmpty) {
+        query = query.inFilter('driver_id', offerIds);
+      } else {
+        query = query.inFilter('rider_id', requestIds);
+      }
+
+      final response = await query.order('updated_at', ascending: false);
+
+      return response.map<RideConfirmed>((json) => RideConfirmed.fromJson(json)).toList();
+    } catch (e) {
+      throw Exception('Failed to fetch ride history: $e');
     }
   }
 }
